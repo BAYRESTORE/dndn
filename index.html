@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>DSRT Image Editor</title>
+<title>DSRT Image Editor - Lengkap Siap Pakai</title>
 <style>
   /* Reset & base */
   * { box-sizing: border-box; }
@@ -44,6 +44,9 @@
   }
   #sidebarLeft button.toolBtn {
     width: 100%; margin:5px 0; padding:8px; background:#333; border:none; color:#0ff; font-weight:600; cursor:pointer;
+    border-radius: 4px;
+    user-select:none;
+    transition: background-color 0.3s;
   }
   #sidebarLeft button.toolBtn.active {
     background:#0ff; color:#222;
@@ -97,6 +100,7 @@
     background:#0ff; border:none; padding:8px 12px; border-radius:4px; font-weight:700; cursor:pointer;
     color:#222;
     user-select:none;
+    transition: background-color 0.3s;
   }
   footer button:disabled {
     background:#444; cursor:not-allowed; color:#888;
@@ -108,6 +112,13 @@
     top: 10px;
     right: 10px;
     z-index: 10;
+    background:#0ff;
+    border:none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-weight: 600;
+    color:#222;
+    cursor:pointer;
   }
   #uploadInput {
     display:none;
@@ -201,28 +212,32 @@
   // Undo stack
   const undoStack = [];
   const redoStack = [];
-  const maxHistory = 10;
+  const maxHistory = 20;
 
-  // Current tool and parameters
+  // Current tool and params
   let currentTool = null;
   let brushSize = 15;
   let eraserSize = 20;
 
-  // Tool flags
+  // Crop vars
+  let cropStart = null;
+  let cropEnd = null;
+  let isCropping = false;
+
+  // Drawing flags
   let isDrawing = false;
   let lastPos = null;
 
-  // Sidebar toggle
+  // Clone stamp vars
+  let cloneSourcePos = null;
+
+  // DOM Elements
   const sidebarLeft = document.getElementById('sidebarLeft');
   const sidebarRight = document.getElementById('sidebarRight');
   const menuToggle = document.getElementById('menuToggle');
   const closeSidebar = document.getElementById('closeSidebar');
-
-  // Upload elements
   const uploadInput = document.getElementById('uploadInput');
   const uploadBtn = document.getElementById('uploadBtn');
-
-  // Buttons
   const backBtn = document.getElementById('backBtn');
   const undoBtn = document.getElementById('undoBtn');
   const redoBtn = document.getElementById('redoBtn');
@@ -231,31 +246,36 @@
   const resetViewBtn = document.getElementById('resetViewBtn');
   const saveBtn = document.getElementById('saveBtn');
   const exportBtn = document.getElementById('exportBtn');
-
-  // Tool buttons
   const toolButtons = document.querySelectorAll('.toolBtn');
   const toolProperties = document.getElementById('toolProperties');
 
-  // Helper: Draw image on canvas with current scale and offset
-  function draw() {
+  // Helper: clamp color values
+  function clamp(v){ return Math.max(0, Math.min(255, v)); }
+
+  // Draw image with transform
+  function draw(){
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if (!imgLoaded) return;
+    if(!imgLoaded) return;
     ctx.save();
     ctx.translate(offsetX, offsetY);
     ctx.scale(scale, scale);
     ctx.drawImage(img, 0, 0);
     ctx.restore();
+
+    if(currentTool==='crop' && cropStart && cropEnd){
+      drawCropRect();
+    }
   }
 
-  // Load image to canvas (and reset transforms)
-  function loadImageToCanvas(image) {
+  // Load image and reset state
+  function loadImage(image){
     img = image;
     imgLoaded = true;
     scale = 1;
     offsetX = 0;
     offsetY = 0;
 
-    // Resize canvas to fit image max 800x600 keeping ratio
+    // Resize canvas max 800x600 keeping ratio
     let w = img.width;
     let h = img.height;
     const maxW = 800;
@@ -271,14 +291,14 @@
     canvas.width = w;
     canvas.height = h;
 
-    saveState(); // Save initial state
+    saveState();
     draw();
     saveBtn.disabled = false;
     exportBtn.disabled = false;
   }
 
-  // Save current canvas state to undo stack
-  function saveState() {
+  // Save canvas state for undo
+  function saveState(){
     if(!imgLoaded) return;
     if(undoStack.length >= maxHistory){
       undoStack.shift();
@@ -288,7 +308,21 @@
     updateUndoRedoButtons();
   }
 
-  function updateUndoRedoButtons() {
+  // Restore from dataURL
+  function restoreFromDataUrl(dataUrl){
+    const tmpImg = new Image();
+    tmpImg.onload = () => {
+      img = tmpImg;
+      imgLoaded = true;
+      canvas.width = img.width;
+      canvas.height = img.height;
+      draw();
+    };
+    tmpImg.src = dataUrl;
+  }
+
+  // Update Undo/Redo buttons disabled state
+  function updateUndoRedoButtons(){
     undoBtn.disabled = undoStack.length <= 1;
     redoBtn.disabled = redoStack.length === 0;
   }
@@ -296,9 +330,9 @@
   // Undo action
   undoBtn.onclick = () => {
     if(undoStack.length > 1){
-      const dataUrl = undoStack.pop();
-      redoStack.push(dataUrl);
-      const prev = undoStack[undoStack.length-1];
+      const last = undoStack.pop();
+      redoStack.push(last);
+      const prev = undoStack[undoStack.length -1];
       restoreFromDataUrl(prev);
       updateUndoRedoButtons();
     }
@@ -307,66 +341,71 @@
   // Redo action
   redoBtn.onclick = () => {
     if(redoStack.length > 0){
-      const dataUrl = redoStack.pop();
-      undoStack.push(dataUrl);
-      restoreFromDataUrl(dataUrl);
+      const redo = redoStack.pop();
+      undoStack.push(redo);
+      restoreFromDataUrl(redo);
       updateUndoRedoButtons();
     }
   };
 
-  function restoreFromDataUrl(dataUrl) {
-    const imgTmp = new Image();
-    imgTmp.onload = () => {
-      img = imgTmp;
-      imgLoaded = true;
-      canvas.width = img.width;
-      canvas.height = img.height;
-      draw();
-    };
-    imgTmp.src = dataUrl;
-  }
-
-  // Upload file handler
+  // Upload handler
   uploadInput.addEventListener('change', e => {
     if(e.target.files.length === 0) return;
     const file = e.target.files[0];
     const reader = new FileReader();
     reader.onload = evt => {
       const image = new Image();
-      image.onload = () => loadImageToCanvas(image);
+      image.onload = () => loadImage(image);
       image.src = evt.target.result;
     };
     reader.readAsDataURL(file);
   });
+  uploadBtn.onclick = () => uploadInput.click();
 
-  uploadBtn.onclick = () => {
-    uploadInput.click();
+  // Menu toggle for mobile
+  menuToggle.onclick = () => {
+    sidebarLeft.classList.toggle('hide');
+  };
+  closeSidebar.onclick = () => sidebarLeft.classList.add('hide');
+
+  // Back button resets all
+  backBtn.onclick = () => {
+    if(confirm("Reset semua dan mulai ulang?")){
+      undoStack.length = 0;
+      redoStack.length = 0;
+      imgLoaded = false;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      saveBtn.disabled = true;
+      exportBtn.disabled = true;
+      toolButtons.forEach(b => b.classList.remove('active'));
+      currentTool = null;
+      sidebarRight.classList.add('hide');
+      draw();
+    }
   };
 
-  // Tool selection
+  // Tool buttons click
   toolButtons.forEach(btn => {
     btn.addEventListener('click', () => {
       if(currentTool === btn.dataset.tool){
-        // toggle off
         currentTool = null;
         btn.classList.remove('active');
-        toolProperties.innerHTML = 'Pilih tool dulu';
         sidebarRight.classList.add('hide');
+        toolProperties.innerHTML = 'Pilih tool dulu';
         canvas.style.cursor = 'default';
       } else {
-        // select new tool
         currentTool = btn.dataset.tool;
         toolButtons.forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        updatePropertiesForTool(currentTool);
+        updatePropertiesPanel(currentTool);
         sidebarRight.classList.remove('hide');
-        canvas.style.cursor = currentTool==='brush' ? 'crosshair' : 'default';
+        canvas.style.cursor = (currentTool==='brush' || currentTool==='eraser' || currentTool==='spotHealing' || currentTool==='cloneStamp') ? 'crosshair' : 'default';
       }
     });
   });
 
-  // Update properties panel for selected tool
-  function updatePropertiesForTool(tool) {
+  // Update properties panel depending on tool
+  function updatePropertiesPanel(tool){
     let html = '';
     switch(tool){
       case 'brush':
@@ -396,7 +435,6 @@
     }
     toolProperties.innerHTML = html;
 
-    // Add event listeners for sliders/buttons dynamically
     if(tool==='brush'){
       document.getElementById('brushSize').addEventListener('input', e => brushSize = +e.target.value);
     }
@@ -422,307 +460,335 @@
       document.getElementById('brushSize').addEventListener('input', e => brushSize = +e.target.value);
     }
   }
-  <script>
-  // Crop selection vars
-  let cropStart = null;
-  let cropEnd = null;
-  let isCropping = false;
 
-  // Mouse/touch handlers for canvas
-  function getCanvasPos(evt) {
+  // Get canvas mouse/touch pos relative to canvas coords
+  function getCanvasPos(evt){
     const rect = canvas.getBoundingClientRect();
     let x, y;
-    if(evt.touches){
+if(evt.touches){
       x = evt.touches[0].clientX - rect.left;
       y = evt.touches[0].clientY - rect.top;
     } else {
       x = evt.clientX - rect.left;
       y = evt.clientY - rect.top;
     }
-    return {x,y};
+    // Sesuaikan dengan offset dan scale
+    x = (x - offsetX) / scale;
+    y = (y - offsetY) / scale;
+    return {x, y};
   }
 
-  canvas.addEventListener('mousedown', startDrawing);
-  canvas.addEventListener('touchstart', startDrawing);
-  canvas.addEventListener('mousemove', drawOnCanvas);
-  canvas.addEventListener('touchmove', drawOnCanvas);
-  canvas.addEventListener('mouseup', stopDrawing);
-  canvas.addEventListener('touchend', stopDrawing);
-  canvas.addEventListener('mouseout', stopDrawing);
+  // Crop drawing rectangle overlay
+  function drawCropRect(){
+    if(!cropStart || !cropEnd) return;
+    ctx.save();
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(scale, scale);
+    ctx.strokeStyle = '#0ff';
+    ctx.lineWidth = 2 / scale;
+    const x = Math.min(cropStart.x, cropEnd.x);
+    const y = Math.min(cropStart.y, cropEnd.y);
+    const w = Math.abs(cropStart.x - cropEnd.x);
+    const h = Math.abs(cropStart.y - cropEnd.y);
+    ctx.strokeRect(x, y, w, h);
+    ctx.restore();
+  }
 
-  function startDrawing(e){
-    if(!currentTool) return;
+  // Apply crop action
+  function applyCrop(){
+    if(!cropStart || !cropEnd) return alert('Pilih area crop dulu!');
+    const x = Math.min(cropStart.x, cropEnd.x);
+    const y = Math.min(cropStart.y, cropEnd.y);
+    const w = Math.abs(cropStart.x - cropEnd.x);
+    const h = Math.abs(cropStart.y - cropEnd.y);
+    if(w < 10 || h < 10) return alert('Area crop terlalu kecil!');
+    // Buat canvas baru untuk crop
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = w;
+    tempCanvas.height = h;
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCtx.drawImage(img, x, y, w, h, 0, 0, w, h);
+
+    // Update img and canvas
+    img.src = tempCanvas.toDataURL();
+    img.onload = () => {
+      canvas.width = w;
+      canvas.height = h;
+      offsetX = 0;
+      offsetY = 0;
+      scale = 1;
+      saveState();
+      draw();
+    };
+    // Reset crop vars
+    cropStart = null;
+    cropEnd = null;
+    isCropping = false;
+  }
+
+  // Rotate image 90° clockwise
+  function rotateImage(){
+    if(!imgLoaded) return;
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = img.height;
+    tempCanvas.height = img.width;
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCtx.translate(tempCanvas.width/2, tempCanvas.height/2);
+    tempCtx.rotate(Math.PI/2);
+    tempCtx.drawImage(img, -img.width/2, -img.height/2);
+    img.src = tempCanvas.toDataURL();
+    img.onload = () => {
+      canvas.width = img.width;
+      canvas.height = img.height;
+      offsetX = 0;
+      offsetY = 0;
+      scale = 1;
+      saveState();
+      draw();
+    };
+  }
+
+  // Apply filters brightness/contrast/grayscale/sepia/invert
+  function applyFilter(type, value=0){
+    if(!imgLoaded) return;
+    const imageData = ctx.getImageData(0,0,canvas.width,canvas.height);
+    const data = imageData.data;
+    switch(type){
+      case 'brightness':
+        for(let i=0; i<data.length; i+=4){
+          data[i] = clamp(data[i] + value*2.55);
+          data[i+1] = clamp(data[i+1] + value*2.55);
+          data[i+2] = clamp(data[i+2] + value*2.55);
+        }
+        break;
+      case 'contrast':
+        let factor = (259 * (value + 255)) / (255 * (259 - value));
+        for(let i=0; i<data.length; i+=4){
+          data[i] = clamp(factor * (data[i] - 128) + 128);
+          data[i+1] = clamp(factor * (data[i+1] - 128) + 128);
+          data[i+2] = clamp(factor * (data[i+2] - 128) + 128);
+        }
+        break;
+      case 'grayscale':
+        for(let i=0; i<data.length; i+=4){
+          let avg = (data[i] + data[i+1] + data[i+2]) /3;
+          data[i] = data[i+1] = data[i+2] = avg;
+        }
+        break;
+      case 'sepia':
+        for(let i=0; i<data.length; i+=4){
+          let r = data[i], g = data[i+1], b = data[i+2];
+          data[i] = clamp((r*0.393) + (g*0.769) + (b*0.189));
+          data[i+1] = clamp((r*0.349) + (g*0.686) + (b*0.168));
+          data[i+2] = clamp((r*0.272) + (g*0.534) + (b*0.131));
+        }
+        break;
+      case 'invert':
+        for(let i=0; i<data.length; i+=4){
+          data[i] = 255 - data[i];
+          data[i+1] = 255 - data[i+1];
+          data[i+2] = 255 - data[i+2];
+        }
+        break;
+    }
+    ctx.putImageData(imageData, 0, 0);
+    saveState();
+  }
+
+  // Drawing with brush or eraser or spotHealing or cloneStamp
+  function drawLine(x1,y1,x2,y2, toolType){
+    if(!imgLoaded) return;
+    ctx.save();
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(scale, scale);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    ctx.beginPath();
+    ctx.moveTo(x1,y1);
+    ctx.lineTo(x2,y2);
+
+    switch(toolType){
+      case 'brush':
+        ctx.strokeStyle = '#0ff';
+        ctx.lineWidth = brushSize / scale;
+        ctx.globalCompositeOperation = 'source-over';
+        break;
+      case 'eraser':
+        ctx.strokeStyle = 'rgba(0,0,0,1)';
+        ctx.lineWidth = eraserSize / scale;
+        ctx.globalCompositeOperation = 'destination-out';
+        break;
+      case 'spotHealing':
+        // Simple spot healing: blur area along line
+        ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+        ctx.lineWidth = brushSize / scale;
+        ctx.globalCompositeOperation = 'source-over';
+        break;
+      case 'cloneStamp':
+        // For clone stamp, draw from cloneSourcePos to current pos (simplified)
+        if(!cloneSourcePos) break;
+        let dx = x2 - x1;
+        let dy = y2 - y1;
+        const cloneX = cloneSourcePos.x + dx;
+        const cloneY = cloneSourcePos.y + dy;
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.drawImage(canvas, cloneX - brushSize/2, cloneY - brushSize/2, brushSize, brushSize, x2 - brushSize/2, y2 - brushSize/2, brushSize, brushSize);
+        ctx.restore();
+        return;
+      default:
+        ctx.strokeStyle = '#0ff';
+        ctx.lineWidth = 5;
+    }
+
+    ctx.stroke();
+    ctx.restore();
+
+    saveState();
+  }
+
+  // Mouse & Touch Events
+  canvas.addEventListener('mousedown', e => {
+    if(!imgLoaded) return;
     const pos = getCanvasPos(e);
     if(currentTool === 'crop'){
       cropStart = pos;
       cropEnd = null;
       isCropping = true;
-      draw(); // redraw to clear selection
-      drawCropRect();
-    } else if(['brush','eraser','spotHealing','cloneStamp'].includes(currentTool)){
+      draw();
+    } else if(['brush', 'eraser', 'spotHealing', 'cloneStamp'].includes(currentTool)){
       isDrawing = true;
       lastPos = pos;
-      saveState();
+      if(currentTool === 'cloneStamp'){
+        if(!cloneSourcePos){
+          cloneSourcePos = pos;
+          alert('Clone source area set. Sekarang sapukan kuas ke target area.');
+          return;
+        }
+      }
     }
-  }
+  });
 
-  function drawOnCanvas(e){
-    if(!isDrawing) return;
-    e.preventDefault();
-    const pos = getCanvasPos(e);
-    if(currentTool === 'brush'){
-      drawBrush(pos);
-    } else if(currentTool === 'eraser'){
-      drawEraser(pos);
-    } else if(currentTool === 'spotHealing'){
-      drawSpotHealing(pos);
-    }
-    lastPos = pos;
-  }
-
-  function stopDrawing(e){
+  canvas.addEventListener('mousemove', e => {
+    if(!imgLoaded) return;
     if(currentTool === 'crop' && isCropping){
+      cropEnd = getCanvasPos(e);
+      draw();
+      drawCropRect();
+    }
+    if(isDrawing){
+      const pos = getCanvasPos(e);
+      drawLine(lastPos.x, lastPos.y, pos.x, pos.y, currentTool);
+      lastPos = pos;
+    }
+  });
+
+  canvas.addEventListener('mouseup', e => {
+    if(currentTool === 'crop' && isCropping){
+      cropEnd = getCanvasPos(e);
       isCropping = false;
+      draw();
+      drawCropRect();
     }
     if(isDrawing){
       isDrawing = false;
-      saveState();
+      lastPos = null;
     }
-  }
+  });
 
-  function drawBrush(pos){
-  ctx.save();
-  ctx.translate(offsetX, offsetY);
-  ctx.scale(scale, scale);
-  ctx.lineCap = "round";
-  ctx.strokeStyle = "#0ff";
-  ctx.lineWidth = brushSize;
-  ctx.beginPath();
-  ctx.moveTo(lastPos.x / scale, lastPos.y / scale);
-  ctx.lineTo(pos.x / scale, pos.y / scale);
-  ctx.stroke();
-  ctx.restore();
-  lastPos = pos;
-}
+  canvas.addEventListener('mouseleave', e => {
+    if(isDrawing){
+      isDrawing = false;
+      lastPos = null;
+    }
+  });
 
-function drawEraser(pos){
-  ctx.save();
-  ctx.translate(offsetX, offsetY);
-  ctx.scale(scale, scale);
-  ctx.globalCompositeOperation = "destination-out";
-  ctx.beginPath();
-  ctx.arc(pos.x / scale, pos.y / scale, eraserSize / 2, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.globalCompositeOperation = "source-over";
-  ctx.restore();
-  lastPos = pos;
-}
+  // Touch events for mobile
+  canvas.addEventListener('touchstart', e => {
+    e.preventDefault();
+    if(!imgLoaded) return;
+    const pos = getCanvasPos(e);
+    if(currentTool === 'crop'){
+      cropStart = pos;
+      cropEnd = null;
+      isCropping = true;
+      draw();
+    } else if(['brush', 'eraser', 'spotHealing', 'cloneStamp'].includes(currentTool)){
+      isDrawing = true;
+      lastPos = pos;
+      if(currentTool === 'cloneStamp'){
+        if(!cloneSourcePos){
+          cloneSourcePos = pos;
+          alert('Clone source area set. Sekarang sapukan kuas ke target area.');
+          return;
+        }
+      }
+    }
+  }, {passive:false});
 
-function drawSpotHealing(pos){
-  // Simple blur placeholder: samples pixels around to blur
-  ctx.save();
-  ctx.translate(offsetX, offsetY);
-  ctx.scale(scale, scale);
+  canvas.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if(!imgLoaded) return;
+    if(currentTool === 'crop' && isCropping){
+      cropEnd = getCanvasPos(e);
+      draw();
+      drawCropRect();
+    }
+    if(isDrawing){
+      const pos = getCanvasPos(e);
+      drawLine(lastPos.x, lastPos.y, pos.x, pos.y, currentTool);
+      lastPos = pos;
+    }
+  }, {passive:false});
 
-  let radius = brushSize;
-  let imageData = ctx.getImageData(
-    pos.x / scale - radius,
-    pos.y / scale - radius,
-    radius * 2,
-    radius * 2
-  );
+  canvas.addEventListener('touchend', e => {
+    e.preventDefault();
+    if(currentTool === 'crop' && isCropping){
+      cropEnd = getCanvasPos(e);
+      isCropping = false;
+      draw();
+      drawCropRect();
+    }
+    if(isDrawing){
+      isDrawing = false;
+      lastPos = null;
+    }
+  }, {passive:false});
 
-  // Naive blur by averaging pixels (very simple)
-  for(let i=0; i < imageData.data.length; i+=4){
-    imageData.data[i] = (imageData.data[i] + imageData.data[i+4] || imageData.data[i]) / 2;
-    imageData.data[i+1] = (imageData.data[i+1] + imageData.data[i+5] || imageData.data[i+1]) / 2;
-    imageData.data[i+2] = (imageData.data[i+2] + imageData.data[i+6] || imageData.data[i+2]) / 2;
-  }
-
-  ctx.putImageData(imageData, pos.x / scale - radius, pos.y / scale - radius);
-  ctx.restore();
-  lastPos = pos;
-}
-
-function drawCropRect(){
-  if(!cropStart || !cropEnd) return;
-  ctx.save();
-  ctx.strokeStyle = "#0ff";
-  ctx.lineWidth = 2;
-  ctx.setLineDash([6]);
-  let x = Math.min(cropStart.x, cropEnd.x);
-  let y = Math.min(cropStart.y, cropEnd.y);
-  let w = Math.abs(cropEnd.x - cropStart.x);
-  let h = Math.abs(cropEnd.y - cropStart.y);
-  ctx.strokeRect(x, y, w, h);
-  ctx.restore();
-}
-
-canvas.addEventListener("mousemove", (e) => {
-  if(currentTool === "crop" && isCropping){
-    cropEnd = getCanvasPos(e);
+  // Zoom buttons
+  zoomInBtn.onclick = () => {
+    scale = Math.min(5, scale + 0.2);
     draw();
-    drawCropRect();
-  }
-});
-canvas.addEventListener("touchmove", (e) => {
-  if(currentTool === "crop" && isCropping){
-    cropEnd = getCanvasPos(e);
+  };
+  zoomOutBtn.onclick = () => {
+    scale = Math.max(0.2, scale - 0.2);
     draw();
-    drawCropRect();
-  }
-});
+  };
+  resetViewBtn.onclick = () => {
+    scale = 1;
+    offsetX = 0;
+    offsetY = 0;
+    draw();
+  };
 
-function applyCrop(){
-  if(!cropStart || !cropEnd) return alert("Pilih area crop dulu!");
-  let x = Math.min(cropStart.x, cropEnd.x);
-  let y = Math.min(cropStart.y, cropEnd.y);
-  let w = Math.abs(cropEnd.x - cropStart.x);
-  let h = Math.abs(cropEnd.y - cropStart.y);
+  // Save & Export (save as data URL or download PNG)
+  saveBtn.onclick = () => {
+    alert('Save fungsi sementara belum terintegrasi database atau backend.');
+  };
 
-  const croppedData = ctx.getImageData(x, y, w, h);
+  exportBtn.onclick = () => {
+    if(!imgLoaded) return alert('Belum ada gambar untuk diekspor!');
+    const dataURL = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = dataURL;
+    a.download = 'dsrt-image.png';
+    a.click();
+  };
 
-  canvas.width = w;
-  canvas.height = h;
-
-  ctx.clearRect(0, 0, w, h);
-  ctx.putImageData(croppedData, 0, 0);
-
-  saveState();
-
-  cropStart = null;
-  cropEnd = null;
-
+  // Initial draw
   draw();
-}
-
-function rotateImage(){
-  if(!imgLoaded) return;
-  saveState();
-
-  const tempCanvas = document.createElement("canvas");
-  const tempCtx = tempCanvas.getContext("2d");
-  tempCanvas.width = canvas.height;
-  tempCanvas.height = canvas.width;
-
-  tempCtx.translate(tempCanvas.width / 2, tempCanvas.height / 2);
-  tempCtx.rotate(Math.PI / 2);
-  tempCtx.drawImage(canvas, -canvas.width / 2, -canvas.height / 2);
-
-  canvas.width = tempCanvas.width;
-  canvas.height = tempCanvas.height;
-
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(tempCanvas, 0, 0);
-
-  saveState();
-}
-
-function applyFilter(type, value){
-  if(!imgLoaded) return;
-  saveState();
-
-  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const data = imageData.data;
-
-  if(type === "brightness"){
-    const v = value * 2.55; 
-    for(let i=0; i < data.length; i+=4){
-      data[i] = clamp(data[i] + v);
-      data[i+1] = clamp(data[i+1] + v);
-      data[i+2] = clamp(data[i+2] + v);
-    }
-  } else if(type === "contrast"){
-    const v = (value / 100) + 1;
-    for(let i=0; i < data.length; i+=4){
-      data[i] = clamp(((data[i]-128)*v)+128);
-      data[i+1] = clamp(((data[i+1]-128)*v)+128);
-      data[i+2] = clamp(((data[i+2]-128)*v)+128);
-    }
-  } else if(type === "grayscale"){
-    for(let i=0; i < data.length; i+=4){
-      const avg = (data[i] + data[i+1] + data[i+2])/3;
-      data[i] = data[i+1] = data[i+2] = avg;
-    }
-  } else if(type === "sepia"){
-    for(let i=0; i < data.length; i+=4){
-      const r = data[i], g = data[i+1], b = data[i+2];
-      data[i] = clamp(r*0.393 + g*0.769 + b*0.189);
-      data[i+1] = clamp(r*0.349 + g*0.686 + b*0.168);
-      data[i+2] = clamp(r*0.272 + g*0.534 + b*0.131);
-    }
-  } else if(type === "invert"){
-    for(let i=0; i < data.length; i+=4){
-      data[i] = 255 - data[i];
-      data[i+1] = 255 - data[i+1];
-      data[i+2] = 255 - data[i+2];
-    }
-  }
-  ctx.putImageData(imageData, 0, 0);
-}
-
-function clamp(value){
-  return Math.max(0, Math.min(255, value));
-}
-
-// Zoom and pan buttons
-zoomInBtn.onclick = () => {
-  scale = Math.min(5, scale + 0.2);
-  draw();
-};
-zoomOutBtn.onclick = () => {
-  scale = Math.max(0.2, scale - 0.2);
-  draw();
-};
-resetViewBtn.onclick = () => {
-  scale = 1;
-  offsetX = 0;
-  offsetY = 0;
-  draw();
-};
-
-// Save and export
-saveBtn.onclick = () => {
-  alert("Fitur save lokal belum dibuat, implementasi opsional.");
-};
-exportBtn.onclick = () => {
-  if(!imgLoaded) return;
-  const dataUrl = canvas.toDataURL("image/png");
-  const link = document.createElement("a");
-  link.download = "edited_image.png";
-  link.href = dataUrl;
-  link.click();
-};
-
-// Sidebar toggle for mobile
-menuToggle.onclick = () => {
-  if(sidebarLeft.classList.contains("hide")){
-    sidebarLeft.classList.remove("hide");
-  } else {
-    sidebarLeft.classList.add("hide");
-  }
-};
-closeSidebar.onclick = () => {
-  sidebarLeft.classList.add("hide");
-};
-
-// Back button resets everything
-backBtn.onclick = () => {
-  if(confirm("Reset semua dan mulai ulang?")){
-    undoStack.length = 0;
-    redoStack.length = 0;
-    imgLoaded = false;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    saveBtn.disabled = true;
-    exportBtn.disabled = true;
-    toolButtons.forEach(b => b.classList.remove("active"));
-    currentTool = null;
-    sidebarRight.classList.add("hide");
-  }
-};
-
-// Init default
-saveState();
-draw();
 })();
 </script>
+
+</body>
+</html>
