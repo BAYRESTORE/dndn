@@ -17,7 +17,7 @@
   #backBtn {
     background:none; border:none; color:#0ff; font-size:24px; cursor:pointer; margin-right:10px;
   }
-  #logo { font-weight:700; font-size: 20px; flex-grow:1; }
+  #logo { font-weight:700; font-size: 20px; flex-grow:1; color:#0ff; }
   #menuToggle {
     background:none; border:none; color:#0ff; font-size:28px; cursor:pointer;
     display:none; /* only mobile */
@@ -189,9 +189,6 @@
   <footer>
     <button id="undoBtn" disabled>Undo</button>
     <button id="redoBtn" disabled>Redo</button>
-    <button id="zoomInBtn">Zoom In</button>
-    <button id="zoomOutBtn">Zoom Out</button>
-    <button id="resetViewBtn">Reset View</button>
     <button id="saveBtn" disabled>Save</button>
     <button id="exportBtn" disabled>Export</button>
   </footer>
@@ -202,593 +199,425 @@
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d');
 
-  // State
+  // Elemen sidebar kanan properti
+  const sidebarRight = document.getElementById('sidebarRight');
+  const toolProperties = document.getElementById('toolProperties');
+
+  // Undo/Redo Buttons
+  const undoBtn = document.getElementById('undoBtn');
+  const redoBtn = document.getElementById('redoBtn');
+  const saveBtn = document.getElementById('saveBtn');
+  const exportBtn = document.getElementById('exportBtn');
+
+  // Upload input & button
+  const uploadInput = document.getElementById('uploadInput');
+  const uploadBtn = document.getElementById('uploadBtn');
+
+  // Sidebar toggle (mobile)
+  const menuToggle = document.getElementById('menuToggle');
+  const sidebarLeft = document.getElementById('sidebarLeft');
+  const closeSidebar = document.getElementById('closeSidebar');
+
+  // Tool buttons
+  const toolButtons = document.querySelectorAll('#sidebarLeft button.toolBtn');
+
+  // State gambar & tools
   let img = new Image();
   let imgLoaded = false;
-  let scale = 1;
-  let offsetX = 0;
-  let offsetY = 0;
 
-  // Undo stack
+  // Undo stack (simpan dataURL)
   const undoStack = [];
   const redoStack = [];
   const maxHistory = 20;
 
-  // Current tool and params
+  // Tool aktif & parameter
   let currentTool = null;
-  let brushSize = 15;
-  let eraserSize = 20;
 
   // Crop vars
   let cropStart = null;
   let cropEnd = null;
   let isCropping = false;
 
-  // Drawing flags
-  let isDrawing = false;
-  let lastPos = null;
+  // Brush parameter
+  let brushSize = 15;
 
-  // Clone stamp vars
-  let cloneSourcePos = null;
+  // ----------------- Fungsi -------------------
 
-  // DOM Elements
-  const sidebarLeft = document.getElementById('sidebarLeft');
-  const sidebarRight = document.getElementById('sidebarRight');
-  const menuToggle = document.getElementById('menuToggle');
-  const closeSidebar = document.getElementById('closeSidebar');
-  const uploadInput = document.getElementById('uploadInput');
-  const uploadBtn = document.getElementById('uploadBtn');
-  const backBtn = document.getElementById('backBtn');
-  const undoBtn = document.getElementById('undoBtn');
-  const redoBtn = document.getElementById('redoBtn');
-  const zoomInBtn = document.getElementById('zoomInBtn');
-  const zoomOutBtn = document.getElementById('zoomOutBtn');
-  const resetViewBtn = document.getElementById('resetViewBtn');
-  const saveBtn = document.getElementById('saveBtn');
-  const exportBtn = document.getElementById('exportBtn');
-  const toolButtons = document.querySelectorAll('.toolBtn');
-  const toolProperties = document.getElementById('toolProperties');
-
-  // Helper: clamp color values
-  function clamp(v){ return Math.max(0, Math.min(255, v)); }
-
-  // Draw image with transform
-  function draw(){
+  function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if(!imgLoaded) return;
-    ctx.save();
-    ctx.translate(offsetX, offsetY);
-    ctx.scale(scale, scale);
-    ctx.drawImage(img, 0, 0);
-    ctx.restore();
+    if (!imgLoaded) {
+      ctx.fillStyle = '#222';
+      ctx.font = '20px Poppins, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Upload gambar dulu', canvas.width / 2, canvas.height / 2);
+      return;
+    }
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-    if(currentTool==='crop' && cropStart && cropEnd){
-      drawCropRect();
+    if (currentTool === 'crop' && cropStart && cropEnd) {
+      ctx.strokeStyle = '#0ff';
+      ctx.lineWidth = 2;
+      const x = Math.min(cropStart.x, cropEnd.x);
+      const y = Math.min(cropStart.y, cropEnd.y);
+      const w = Math.abs(cropStart.x - cropEnd.x);
+      const h = Math.abs(cropStart.y - cropEnd.y);
+      ctx.strokeRect(x, y, w, h);
     }
   }
 
-  // Load image and reset state
-  function loadImage(image){
-    img = image;
-    imgLoaded = true;
-    scale = 1;
-    offsetX = 0;
-    offsetY = 0;
-
-    // Resize canvas max 800x600 keeping ratio
-    let w = img.width;
-    let h = img.height;
-    const maxW = 800;
-    const maxH = 600;
-    if(w > maxW){
-      h = h * maxW / w;
-      w = maxW;
-    }
-    if(h > maxH){
-      w = w * maxH / h;
-      h = maxH;
-    }
-    canvas.width = w;
-    canvas.height = h;
-
-    saveState();
-    draw();
-    saveBtn.disabled = false;
-    exportBtn.disabled = false;
-  }
-
-  // Save canvas state for undo
-  function saveState(){
-    if(!imgLoaded) return;
-    if(undoStack.length >= maxHistory){
-      undoStack.shift();
-    }
+  function saveState() {
+    if (!imgLoaded) return;
+    if (undoStack.length >= maxHistory) undoStack.shift();
     undoStack.push(canvas.toDataURL());
     redoStack.length = 0;
-    updateUndoRedoButtons();
+    updateUndoRedo();
   }
 
-  // Restore from dataURL
-  function restoreFromDataUrl(dataUrl){
+  function restoreFromDataURL(dataURL) {
     const tmpImg = new Image();
     tmpImg.onload = () => {
       img = tmpImg;
       imgLoaded = true;
-      canvas.width = img.width;
-      canvas.height = img.height;
       draw();
+      updateUndoRedo();
     };
-    tmpImg.src = dataUrl;
+    tmpImg.src = dataURL;
   }
 
-  // Update Undo/Redo buttons disabled state
-  function updateUndoRedoButtons(){
-    undoBtn.disabled = undoStack.length <= 1;
-    redoBtn.disabled = redoStack.length === 0;
-  }
-
-  // Undo action
-  undoBtn.onclick = () => {
-    if(undoStack.length > 1){
+  function undo() {
+    if (undoStack.length > 1) {
       const last = undoStack.pop();
       redoStack.push(last);
-      const prev = undoStack[undoStack.length -1];
-      restoreFromDataUrl(prev);
-      updateUndoRedoButtons();
+      restoreFromDataURL(undoStack[undoStack.length - 1]);
     }
-  };
+  }
 
-  // Redo action
-  redoBtn.onclick = () => {
-    if(redoStack.length > 0){
-      const redo = redoStack.pop();
-      undoStack.push(redo);
-      restoreFromDataUrl(redo);
-      updateUndoRedoButtons();
+  function redo() {
+    if (redoStack.length > 0) {
+      const redoData = redoStack.pop();
+      undoStack.push(redoData);
+      restoreFromDataURL(redoData);
     }
-  };
+  }
 
-  // Upload handler
-  uploadInput.addEventListener('change', e => {
-    if(e.target.files.length === 0) return;
+  function updateUndoRedo() {
+    undoBtn.disabled = undoStack.length <= 1;
+    redoBtn.disabled = redoStack.length === 0;
+    saveBtn.disabled = !imgLoaded;
+    exportBtn.disabled = !imgLoaded;
+  }
+
+  function handleFile(e) {
     const file = e.target.files[0];
+    if (!file) return;
     const reader = new FileReader();
     reader.onload = evt => {
       const image = new Image();
-      image.onload = () => loadImage(image);
+      image.onload = () => {
+        img = image;
+        imgLoaded = true;
+        let w = img.width;
+        let h = img.height;
+        const maxW = 800;
+        const maxH = 600;
+        if (w > maxW) {
+          h = h * maxW / w;
+          w = maxW;
+        }
+        if (h > maxH) {
+          w = w * maxH / h;
+          h = maxH;
+        }
+        canvas.width = w;
+        canvas.height = h;
+        draw();
+        saveState();
+      };
       image.src = evt.target.result;
     };
     reader.readAsDataURL(file);
-  });
-  uploadBtn.onclick = () => uploadInput.click();
+  }
 
-  // Menu toggle for mobile
-  menuToggle.onclick = () => {
-    sidebarLeft.classList.toggle('hide');
-  };
-  closeSidebar.onclick = () => sidebarLeft.classList.add('hide');
+  // ---------------- Tool selection ----------------
 
-  // Back button resets all
-  backBtn.onclick = () => {
-    if(confirm("Reset semua dan mulai ulang?")){
-      undoStack.length = 0;
-      redoStack.length = 0;
-      imgLoaded = false;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      saveBtn.disabled = true;
-      exportBtn.disabled = true;
-      toolButtons.forEach(b => b.classList.remove('active'));
-      currentTool = null;
-      sidebarRight.classList.add('hide');
-      draw();
-    }
-  };
-
-  // Tool buttons click
   toolButtons.forEach(btn => {
     btn.addEventListener('click', () => {
-      if(currentTool === btn.dataset.tool){
+      const selectedTool = btn.dataset.tool;
+      if (currentTool === selectedTool) {
         currentTool = null;
         btn.classList.remove('active');
         sidebarRight.classList.add('hide');
         toolProperties.innerHTML = 'Pilih tool dulu';
-        canvas.style.cursor = 'default';
       } else {
-        currentTool = btn.dataset.tool;
+        currentTool = selectedTool;
         toolButtons.forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        updatePropertiesPanel(currentTool);
         sidebarRight.classList.remove('hide');
-        canvas.style.cursor = (currentTool==='brush' || currentTool==='eraser' || currentTool==='spotHealing' || currentTool==='cloneStamp') ? 'crosshair' : 'default';
+        updatePropertiesPanel(selectedTool);
       }
+      draw();
     });
   });
 
-  // Update properties panel depending on tool
-  function updatePropertiesPanel(tool){
+  function updatePropertiesPanel(tool) {
     let html = '';
-    switch(tool){
+    switch (tool) {
       case 'brush':
-        html = `<label>Brush Size: <input type="range" id="brushSize" min="1" max="50" value="${brushSize}"></label>`;
-        break;
-      case 'eraser':
-        html = `<label>Eraser Size: <input type="range" id="eraserSize" min="1" max="50" value="${eraserSize}"></label>`;
-        break;
-      case 'brightness':
-      case 'contrast':
-        html = `<label>${tool.charAt(0).toUpperCase() + tool.slice(1)}: <input type="range" id="${tool}Range" min="-100" max="100" value="0"></label>`;
+        html = `<label>Ukuran Brush: <input type="range" id="brushSize" min="1" max="50" value="${brushSize}"></label>`;
         break;
       case 'crop':
-        html = `<p>Drag di canvas untuk memilih area crop, lalu klik Apply Crop di bawah.</p><button id="applyCropBtn">Apply Crop</button>`;
+        html = `<p>Drag di canvas untuk memilih area crop, lalu klik <button id="applyCropBtn">Crop</button></p>`;
         break;
       case 'rotate':
         html = `<button id="rotateBtn">Putar 90°</button>`;
         break;
-      case 'spotHealing':
-        html = `<p>Gunakan kuas untuk menghapus noda dengan blur.</p><label>Brush Size: <input type="range" id="brushSize" min="1" max="50" value="${brushSize}"></label>`;
-        break;
-      case 'cloneStamp':
-        html = `<p>Klik area sumber lalu kuas area target.</p><label>Brush Size: <input type="range" id="brushSize" min="1" max="50" value="${brushSize}"></label>`;
+      case 'brightness':
+      case 'contrast':
+        html = `<label>${tool.charAt(0).toUpperCase() + tool.slice(1)}: <input type="range" id="${tool}Range" min="-100" max="100" value="0"></label>`;
         break;
       default:
         html = `<p>Atur properti jika ada.</p>`;
     }
     toolProperties.innerHTML = html;
 
-    if(tool==='brush'){
-      document.getElementById('brushSize').addEventListener('input', e => brushSize = +e.target.value);
+    if (tool === 'brush') {
+      document.getElementById('brushSize').addEventListener('input', e => {
+        brushSize = +e.target.value;
+      });
     }
-    if(tool==='eraser'){
-      document.getElementById('eraserSize').addEventListener('input', e => eraserSize = +e.target.value);
-    }
-    if(tool==='brightness'){
-      document.getElementById('brightnessRange').addEventListener('input', e => applyFilter('brightness', +e.target.value));
-    }
-    if(tool==='contrast'){
-      document.getElementById('contrastRange').addEventListener('input', e => applyFilter('contrast', +e.target.value));
-    }
-    if(tool==='crop'){
+    if (tool === 'crop') {
       document.getElementById('applyCropBtn').addEventListener('click', applyCrop);
     }
-    if(tool==='rotate'){
+    if (tool === 'rotate') {
       document.getElementById('rotateBtn').addEventListener('click', rotateImage);
     }
-    if(tool==='spotHealing'){
-      document.getElementById('brushSize').addEventListener('input', e => brushSize = +e.target.value);
+    if (tool === 'brightness') {
+      document.getElementById('brightnessRange').addEventListener('input', e => applyFilter('brightness', +e.target.value));
     }
-    if(tool==='cloneStamp'){
-      document.getElementById('brushSize').addEventListener('input', e => brushSize = +e.target.value);
+    if (tool === 'contrast') {
+      document.getElementById('contrastRange').addEventListener('input', e => applyFilter('contrast', +e.target.value));
     }
   }
 
-  // Get canvas mouse/touch pos relative to canvas coords
-  function getCanvasPos(evt){
+  // ---------------- Canvas events ----------------
+
+  let isDrawing = false;
+  let lastPos = null;
+
+  canvas.addEventListener('mousedown', e => {
+    if (!imgLoaded) return;
+    const pos = getCanvasPos(e);
+    if (currentTool === 'crop') {
+      cropStart = pos;
+      cropEnd = null;
+      isCropping = true;
+      draw();
+    } else if (currentTool === 'brush') {
+      isDrawing = true;
+      lastPos = pos;
+    }
+  });
+
+  canvas.addEventListener('mousemove', e => {
+    if (!imgLoaded) return;
+    const pos = getCanvasPos(e);
+    if (currentTool === 'crop' && isCropping) {
+      cropEnd = pos;
+      draw();
+    }
+    if (isDrawing && currentTool === 'brush') {
+      drawLine(lastPos.x, lastPos.y, pos.x, pos.y);
+      lastPos = pos;
+    }
+  });
+
+  canvas.addEventListener('mouseup', e => {
+    if (currentTool === 'crop' && isCropping) {
+      cropEnd = getCanvasPos(e);
+      isCropping = false;
+      draw();
+    }
+    if (isDrawing && currentTool === 'brush') {
+      isDrawing = false;
+      lastPos = null;
+      saveState();
+    }
+  });
+
+  canvas.addEventListener('mouseleave', e => {
+    if (isDrawing) {
+      isDrawing = false;
+      lastPos = null;
+    }
+  });
+
+  function getCanvasPos(evt) {
     const rect = canvas.getBoundingClientRect();
     let x, y;
-if(evt.touches){
+    if (evt.touches) {
       x = evt.touches[0].clientX - rect.left;
       y = evt.touches[0].clientY - rect.top;
     } else {
       x = evt.clientX - rect.left;
       y = evt.clientY - rect.top;
     }
-    // Sesuaikan dengan offset dan scale
-    x = (x - offsetX) / scale;
-    y = (y - offsetY) / scale;
-    return {x, y};
+    x = Math.max(0, Math.min(canvas.width, x));
+    y = Math.max(0, Math.min(canvas.height, y));
+    return { x, y };
   }
 
-  // Crop drawing rectangle overlay
-  function drawCropRect(){
-    if(!cropStart || !cropEnd) return;
-    ctx.save();
-    ctx.translate(offsetX, offsetY);
-    ctx.scale(scale, scale);
+  function drawLine(x1, y1, x2, y2) {
     ctx.strokeStyle = '#0ff';
-    ctx.lineWidth = 2 / scale;
-    const x = Math.min(cropStart.x, cropEnd.x);
-    const y = Math.min(cropStart.y, cropEnd.y);
-    const w = Math.abs(cropStart.x - cropEnd.x);
-    const h = Math.abs(cropStart.y - cropEnd.y);
-    ctx.strokeRect(x, y, w, h);
-    ctx.restore();
+    ctx.lineWidth = brushSize;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
   }
 
-  // Apply crop action
-  function applyCrop(){
-    if(!cropStart || !cropEnd) return alert('Pilih area crop dulu!');
+  // ---------------- Tools -------------------
+
+  function applyCrop() {
+    if (!cropStart || !cropEnd) return alert('Pilih area crop dulu!');
     const x = Math.min(cropStart.x, cropEnd.x);
     const y = Math.min(cropStart.y, cropEnd.y);
     const w = Math.abs(cropStart.x - cropEnd.x);
     const h = Math.abs(cropStart.y - cropEnd.y);
-    if(w < 10 || h < 10) return alert('Area crop terlalu kecil!');
-    // Buat canvas baru untuk crop
+    if (w < 10 || h < 10) return alert('Area crop terlalu kecil!');
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = w;
     tempCanvas.height = h;
     const tempCtx = tempCanvas.getContext('2d');
-    tempCtx.drawImage(img, x, y, w, h, 0, 0, w, h);
-
-    // Update img and canvas
+    tempCtx.drawImage(canvas, x, y, w, h, 0, 0, w, h);
     img.src = tempCanvas.toDataURL();
     img.onload = () => {
       canvas.width = w;
       canvas.height = h;
-      offsetX = 0;
-      offsetY = 0;
-      scale = 1;
-      saveState();
       draw();
+      saveState();
     };
-    // Reset crop vars
-    cropStart = null;
-    cropEnd = null;
-    isCropping = false;
+    cropStart = cropEnd = null;
   }
 
-  // Rotate image 90° clockwise
-  function rotateImage(){
-    if(!imgLoaded) return;
+  function rotateImage() {
+    if (!imgLoaded) return;
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = img.height;
     tempCanvas.height = img.width;
     const tempCtx = tempCanvas.getContext('2d');
-    tempCtx.translate(tempCanvas.width/2, tempCanvas.height/2);
-    tempCtx.rotate(Math.PI/2);
-    tempCtx.drawImage(img, -img.width/2, -img.height/2);
+    tempCtx.translate(tempCanvas.width / 2, tempCanvas.height / 2);
+    tempCtx.rotate(Math.PI / 2);
+    tempCtx.drawImage(img, -img.width / 2, -img.height / 2);
     img.src = tempCanvas.toDataURL();
     img.onload = () => {
-      canvas.width = img.width;
-      canvas.height = img.height;
-      offsetX = 0;
-      offsetY = 0;
-      scale = 1;
-      saveState();
+      canvas.width = tempCanvas.width;
+      canvas.height = tempCanvas.height;
       draw();
+      saveState();
     };
   }
 
-  // Apply filters brightness/contrast/grayscale/sepia/invert
-  function applyFilter(type, value=0){
-    if(!imgLoaded) return;
-    const imageData = ctx.getImageData(0,0,canvas.width,canvas.height);
+  function applyFilter(type, value) {
+    if (!imgLoaded) return;
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const data = imageData.data;
-    switch(type){
-      case 'brightness':
-        for(let i=0; i<data.length; i+=4){
-          data[i] = clamp(data[i] + value*2.55);
-          data[i+1] = clamp(data[i+1] + value*2.55);
-          data[i+2] = clamp(data[i+2] + value*2.55);
-        }
-        break;
-      case 'contrast':
-        let factor = (259 * (value + 255)) / (255 * (259 - value));
-        for(let i=0; i<data.length; i+=4){
-          data[i] = clamp(factor * (data[i] - 128) + 128);
-          data[i+1] = clamp(factor * (data[i+1] - 128) + 128);
-          data[i+2] = clamp(factor * (data[i+2] - 128) + 128);
-        }
-        break;
-      case 'grayscale':
-        for(let i=0; i<data.length; i+=4){
-          let avg = (data[i] + data[i+1] + data[i+2]) /3;
-          data[i] = data[i+1] = data[i+2] = avg;
-        }
-        break;
-      case 'sepia':
-        for(let i=0; i<data.length; i+=4){
-          let r = data[i], g = data[i+1], b = data[i+2];
-          data[i] = clamp((r*0.393) + (g*0.769) + (b*0.189));
-          data[i+1] = clamp((r*0.349) + (g*0.686) + (b*0.168));
-          data[i+2] = clamp((r*0.272) + (g*0.534) + (b*0.131));
-        }
-        break;
-      case 'invert':
-        for(let i=0; i<data.length; i+=4){
-          data[i] = 255 - data[i];
-          data[i+1] = 255 - data[i+1];
-          data[i+2] = 255 - data[i+2];
-        }
-        break;
+
+    if (type === 'brightness') {
+      for (let i = 0; i < data.length; i += 4) {
+        data[i] = clamp(data[i] + value * 2.55);     // R
+        data[i+1] = clamp(data[i+1] + value * 2.55); // G
+        data[i+2] = clamp(data[i+2] + value * 2.55); // B
+      }
+    } else if (type === 'contrast') {
+      const contrast = (value / 100) + 1;
+      const intercept = 128 * (1 - contrast);
+      for (let i = 0; i < data.length; i += 4) {
+        data[i] = clamp(data[i] * contrast + intercept);
+        data[i+1] = clamp(data[i+1] * contrast + intercept);
+        data[i+2] = clamp(data[i+2] * contrast + intercept);
+      }
     }
     ctx.putImageData(imageData, 0, 0);
     saveState();
   }
 
-  // Drawing with brush or eraser or spotHealing or cloneStamp
-  function drawLine(x1,y1,x2,y2, toolType){
-    if(!imgLoaded) return;
-    ctx.save();
-    ctx.translate(offsetX, offsetY);
-    ctx.scale(scale, scale);
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
+  function clamp(val) {
+    return Math.max(0, Math.min(255, val));
+  }
 
-    ctx.beginPath();
-    ctx.moveTo(x1,y1);
-    ctx.lineTo(x2,y2);
+  // Filter presets
 
-    switch(toolType){
-      case 'brush':
-        ctx.strokeStyle = '#0ff';
-        ctx.lineWidth = brushSize / scale;
-        ctx.globalCompositeOperation = 'source-over';
+  function applyPresetFilter(filterName) {
+    if (!imgLoaded) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.filter = 'none';
+
+    switch (filterName) {
+      case 'grayscale':
+        ctx.filter = 'grayscale(100%)';
         break;
-      case 'eraser':
-        ctx.strokeStyle = 'rgba(0,0,0,1)';
-        ctx.lineWidth = eraserSize / scale;
-        ctx.globalCompositeOperation = 'destination-out';
+      case 'sepia':
+        ctx.filter = 'sepia(100%)';
         break;
-      case 'spotHealing':
-        // Simple spot healing: blur area along line
-        ctx.strokeStyle = 'rgba(0,0,0,0.15)';
-        ctx.lineWidth = brushSize / scale;
-        ctx.globalCompositeOperation = 'source-over';
+      case 'invert':
+        ctx.filter = 'invert(100%)';
         break;
-      case 'cloneStamp':
-        // For clone stamp, draw from cloneSourcePos to current pos (simplified)
-        if(!cloneSourcePos) break;
-        let dx = x2 - x1;
-        let dy = y2 - y1;
-        const cloneX = cloneSourcePos.x + dx;
-        const cloneY = cloneSourcePos.y + dy;
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.drawImage(canvas, cloneX - brushSize/2, cloneY - brushSize/2, brushSize, brushSize, x2 - brushSize/2, y2 - brushSize/2, brushSize, brushSize);
-        ctx.restore();
-        return;
       default:
-        ctx.strokeStyle = '#0ff';
-        ctx.lineWidth = 5;
+        ctx.filter = 'none';
     }
-
-    ctx.stroke();
-    ctx.restore();
-
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    ctx.filter = 'none';
     saveState();
   }
 
-  // Mouse & Touch Events
-  canvas.addEventListener('mousedown', e => {
-    if(!imgLoaded) return;
-    const pos = getCanvasPos(e);
-    if(currentTool === 'crop'){
-      cropStart = pos;
-      cropEnd = null;
-      isCropping = true;
-      draw();
-    } else if(['brush', 'eraser', 'spotHealing', 'cloneStamp'].includes(currentTool)){
-      isDrawing = true;
-      lastPos = pos;
-      if(currentTool === 'cloneStamp'){
-        if(!cloneSourcePos){
-          cloneSourcePos = pos;
-          alert('Clone source area set. Sekarang sapukan kuas ke target area.');
-          return;
-        }
+  // Tool Buttons special handling for filters
+
+  toolButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tool = btn.dataset.tool;
+      if (['grayscale','sepia','invert'].includes(tool)) {
+        applyPresetFilter(tool);
       }
-    }
+    });
   });
 
-  canvas.addEventListener('mousemove', e => {
-    if(!imgLoaded) return;
-    if(currentTool === 'crop' && isCropping){
-      cropEnd = getCanvasPos(e);
-      draw();
-      drawCropRect();
-    }
-    if(isDrawing){
-      const pos = getCanvasPos(e);
-      drawLine(lastPos.x, lastPos.y, pos.x, pos.y, currentTool);
-      lastPos = pos;
-    }
+  // Undo/Redo buttons event
+  undoBtn.addEventListener('click', undo);
+  redoBtn.addEventListener('click', redo);
+
+  // Save (overwrite current state)
+  saveBtn.addEventListener('click', () => {
+    alert('Gambar sudah tersimpan di editor (undo history).');
   });
 
-  canvas.addEventListener('mouseup', e => {
-    if(currentTool === 'crop' && isCropping){
-      cropEnd = getCanvasPos(e);
-      isCropping = false;
-      draw();
-      drawCropRect();
-    }
-    if(isDrawing){
-      isDrawing = false;
-      lastPos = null;
-    }
+  // Export button (download PNG)
+  exportBtn.addEventListener('click', () => {
+    if (!imgLoaded) return;
+    const link = document.createElement('a');
+    link.download = 'dsrt-image.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
   });
 
-  canvas.addEventListener('mouseleave', e => {
-    if(isDrawing){
-      isDrawing = false;
-      lastPos = null;
+  // Upload button open file dialog
+  uploadBtn.addEventListener('click', () => uploadInput.click());
+  uploadInput.addEventListener('change', handleFile);
+
+  // Sidebar toggle for mobile
+  menuToggle.addEventListener('click', () => {
+    if (sidebarLeft.classList.contains('hide')) {
+      sidebarLeft.classList.remove('hide');
+    } else {
+      sidebarLeft.classList.add('hide');
     }
   });
-
-  // Touch events for mobile
-  canvas.addEventListener('touchstart', e => {
-    e.preventDefault();
-    if(!imgLoaded) return;
-    const pos = getCanvasPos(e);
-    if(currentTool === 'crop'){
-      cropStart = pos;
-      cropEnd = null;
-      isCropping = true;
-      draw();
-    } else if(['brush', 'eraser', 'spotHealing', 'cloneStamp'].includes(currentTool)){
-      isDrawing = true;
-      lastPos = pos;
-      if(currentTool === 'cloneStamp'){
-        if(!cloneSourcePos){
-          cloneSourcePos = pos;
-          alert('Clone source area set. Sekarang sapukan kuas ke target area.');
-          return;
-        }
-      }
-    }
-  }, {passive:false});
-
-  canvas.addEventListener('touchmove', e => {
-    e.preventDefault();
-    if(!imgLoaded) return;
-    if(currentTool === 'crop' && isCropping){
-      cropEnd = getCanvasPos(e);
-      draw();
-      drawCropRect();
-    }
-    if(isDrawing){
-      const pos = getCanvasPos(e);
-      drawLine(lastPos.x, lastPos.y, pos.x, pos.y, currentTool);
-      lastPos = pos;
-    }
-  }, {passive:false});
-
-  canvas.addEventListener('touchend', e => {
-    e.preventDefault();
-    if(currentTool === 'crop' && isCropping){
-      cropEnd = getCanvasPos(e);
-      isCropping = false;
-      draw();
-      drawCropRect();
-    }
-    if(isDrawing){
-      isDrawing = false;
-      lastPos = null;
-    }
-  }, {passive:false});
-
-  // Zoom buttons
-  zoomInBtn.onclick = () => {
-    scale = Math.min(5, scale + 0.2);
-    draw();
-  };
-  zoomOutBtn.onclick = () => {
-    scale = Math.max(0.2, scale - 0.2);
-    draw();
-  };
-  resetViewBtn.onclick = () => {
-    scale = 1;
-    offsetX = 0;
-    offsetY = 0;
-    draw();
-  };
-
-  // Save & Export (save as data URL or download PNG)
-  saveBtn.onclick = () => {
-    alert('Save fungsi sementara belum terintegrasi database atau backend.');
-  };
-
-  exportBtn.onclick = () => {
-    if(!imgLoaded) return alert('Belum ada gambar untuk diekspor!');
-    const dataURL = canvas.toDataURL('image/png');
-    const a = document.createElement('a');
-    a.href = dataURL;
-    a.download = 'dsrt-image.png';
-    a.click();
-  };
+  closeSidebar.addEventListener('click', () => sidebarLeft.classList.add('hide'));
 
   // Initial draw
   draw();
+
 })();
 </script>
-
 </body>
 </html>
