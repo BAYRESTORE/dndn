@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DSRT Full Template</title>
+<style>
+  body,html {
+    margin:0; padding:0; height:100%; font-family: Arial, sans-serif;
+    display: flex; flex-direction: column;
+  }
+  header {
+    height: 50px; background:#222; color:#fff; display: flex; align-items: center; padding: 0 20px;
+  }
+  header .logo { font-weight: bold; font-size: 20px; }
+  header nav { margin-left: 30px; display: flex; gap: 20px; }
+  header nav button {
+    background: #444; border:none; color:#fff; padding: 6px 14px; cursor:pointer;
+  }
+  .container {
+    flex:1; display:flex; height: calc(100vh - 100px);
+  }
+  .sidebar-left, .sidebar-right {
+    background:#f5f5f5; padding: 15px; overflow-y: auto; box-sizing: border-box;
+  }
+  .sidebar-left { width: 250px; border-right: 1px solid #ccc; }
+  .sidebar-right { width: 250px; border-left: 1px solid #ccc; }
+  main {
+    flex:1; display:flex; justify-content: center; align-items: center; background: #ddd; position: relative;
+  }
+  #canvas {
+    background: white; border: 1px solid #aaa; max-width: 100%; max-height: 100%;
+    cursor: crosshair;
+  }
+  button.tool-btn {
+    width: 100%; margin: 6px 0; padding: 10px; border:1px solid #ccc; background:#fff; cursor:pointer;
+    font-size: 14px;
+  }
+  button.tool-btn.active {
+    background:#007bff; color:#fff; border-color:#007bff;
+  }
+  .slider-group {
+    margin: 10px 0;
+  }
+  label {
+    display: block; margin-bottom: 5px; font-weight: 600;
+  }
+  input[type=range] {
+    width: 100%;
+  }
+  footer {
+    height: 50px; background:#222; color:#fff; display:flex; justify-content:center; align-items:center; gap: 15px;
+  }
+  footer button {
+    background:#444; border:none; color:#fff; padding: 8px 15px; cursor:pointer;
+  }
+  #upload {
+    margin-top: 15px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">DSRT</div>
+  <nav>
+    <button id="homeBtn">Home</button>
+    <button id="toolsBtn">Tools</button>
+    <button id="restoreBtn">Restore</button>
+    <button id="filterBtn">Filter</button>
+  </nav>
+</header>
+
+<div class="container">
+  <aside class="sidebar-left">
+    <h3>Manual Tools</h3>
+    <button class="tool-btn" data-tool="crop">Crop</button>
+    <button class="tool-btn" data-tool="rotate">Rotate 90°</button>
+    <button class="tool-btn" data-tool="brush">Brush</button>
+    <button class="tool-btn" data-tool="eraser">Eraser</button>
+
+    <h3>Restoration Tools</h3>
+    <button class="tool-btn" data-tool="spotHealing">Spot Healing</button>
+    <button class="tool-btn" data-tool="cloneStamp">Clone Stamp</button>
+
+    <h3>Filter Tools</h3>
+    <button class="tool-btn" data-tool="brightness">Brightness</button>
+    <button class="tool-btn" data-tool="contrast">Contrast</button>
+    <button class="tool-btn" data-tool="grayscale">Grayscale</button>
+    <button class="tool-btn" data-tool="sepia">Sepia</button>
+    <button class="tool-btn" data-tool="invert">Invert</button>
+  </aside>
+
+  <main>
+    <canvas id="canvas" width="800" height="600"></canvas>
+    <input type="file" id="upload" accept="image/*" />
+  </main>
+
+  <aside class="sidebar-right">
+    <h3>Properties</h3>
+    <div id="toolProperties">
+      <p>Pilih tool dulu</p>
+    </div>
+  </aside>
+</div>
+
+<footer>
+  <button id="undoBtn">Undo</button>
+  <button id="redoBtn">Redo</button>
+  <button id="zoomInBtn">Zoom In</button>
+  <button id="zoomOutBtn">Zoom Out</button>
+  <button id="resetViewBtn">Reset View</button>
+  <button id="saveBtn">Save</button>
+  <button id="exportBtn">Export</button>
+</footer>
+
+<script>
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const upload = document.getElementById('upload');
+  const toolButtons = document.querySelectorAll('.tool-btn');
+  const toolProperties = document.getElementById('toolProperties');
+
+  let currentTool = null;
+  let img = new Image();
+  let history = [];
+  let historyStep = -1;
+  let drawing = false;
+  let brushSize = 10;
+  let scale = 1;
+  let offsetX = 0;
+  let offsetY = 0;
+
+  // Load image from file input
+  upload.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  img.onload = () => {
+    canvas.width = img.width;
+    canvas.height = img.height;
+    resetView();
+    drawImage();
+    saveHistory();
+  };
+
+  // History management
+  function saveHistory() {
+    if (historyStep < history.length -1) {
+      history = history.slice(0, historyStep + 1);
+    }
+    history.push(canvas.toDataURL());
+    historyStep++;
+  }
+
+  function loadFromHistory() {
+    if (historyStep < 0) return;
+    const imgRestore = new Image();
+    imgRestore.src = history[historyStep];
+    imgRestore.onload = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(imgRestore, 0, 0);
+    };
+  }
+
+  document.getElementById('undoBtn').onclick = () => {
+    if (historyStep > 0) {
+      historyStep--;
+      loadFromHistory();
+    }
+  };
+
+  document.getElementById('redoBtn').onclick = () => {
+    if (historyStep < history.length -1) {
+      historyStep++;
+      loadFromHistory();
+    }
+  };
+
+  // Tool selection
+  toolButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentTool = btn.dataset.tool;
+      toolButtons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      showProperties(currentTool);
+    });
+  });
+
+  function showProperties(tool) {
+    toolProperties.innerHTML = '';
+    if (tool === 'brightness' || tool === 'contrast') {
+      const label = document.createElement('label');
+      label.textContent = tool.charAt(0).toUpperCase() + tool.slice(1) + ':';
+      const slider = document.createElement('input');
+      slider.type = 'range';
+      slider.min = -100;
+      slider.max = 100;
+      slider.value = 0;
+      slider.oninput = () => applyFilter(tool, slider.value);
+      toolProperties.appendChild(label);
+      toolProperties.appendChild(slider);
+    } else if (tool === 'brush' || tool === 'eraser' || tool === 'spotHealing' || tool === 'cloneStamp') {
+      const label = document.createElement('label');
+      label.textContent = 'Brush Size:';
+      const slider = document.createElement('input');
+      slider.type = 'range';
+      slider.min = 1;
+      slider.max = 50;
+      slider.value = brushSize;
+      slider.oninput = () => {
+        brushSize = parseInt(slider.value);
+      };
+      toolProperties.appendChild(label);
+      toolProperties.appendChild(slider);
+    } else if (tool === 'crop') {
+      toolProperties.textContent = 'Drag pada canvas untuk crop area.';
+    } else if (tool === 'rotate') {
+      const btn = document.createElement('button');
+      btn.textContent = 'Rotate 90°';
+      btn.onclick = () => rotateCanvas();
+      toolProperties.appendChild(btn);
+    } else if (tool === 'grayscale' || tool === 'sepia' || tool === 'invert') {
+      const btn = document.createElement('button');
+      btn.textContent = 'Apply ' + tool.charAt(0).toUpperCase() + tool.slice(1);
+      btn.onclick = () => applyFilter(tool);
+      toolProperties.appendChild(btn);
+    } else {
+      toolProperties.textContent = 'Pilih tool dulu';
+    }
+  }
+
+  // Variables for drawing and crop
+  let startX, startY, endX, endY;
+  let isCropping = false;
+  let isDrawing = false;
+  let cloneSource = null;
+
+  canvas.onmousedown = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left)/scale - offsetX;
+    const y = (e.clientY - rect.top)/scale - offsetY;
+    if (currentTool === 'brush' || currentTool === 'eraser' || currentTool === 'spotHealing' || currentTool === 'cloneStamp') {
+      isDrawing = true;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+    } else if (currentTool === 'crop') {
+      isCropping = true;
+      startX = x;
+      startY = y;
+    } else if (currentTool === 'cloneStamp') {
+      // handled separately for right click clone source
+    }
+  };
+
+  canvas.onmousemove = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left)/scale - offsetX;
+    const y = (e.clientY - rect.top)/scale - offsetY;
+    if (isDrawing) {
+      if (currentTool === 'brush') {
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = brushSize;
+        ctx.lineCap = 'round';
+        ctx.lineTo(x, y);
+        ctx.stroke();
+      } else if (currentTool === 'eraser') {
+        ctx.clearRect(x - brushSize/2, y - brushSize/2, brushSize, brushSize);
+      } else if (currentTool === 'spotHealing') {
+        // simple clone stamp like spot healing
+        ctx.clearRect(x - brushSize/2, y - brushSize/2, brushSize, brushSize);
+      } else if (currentTool === 'cloneStamp' && cloneSource) {
+        const dx = x - cloneSource.x;
+        const dy = y - cloneSource.y;
+        const imageData = ctx.getImageData(cloneSource.x, cloneSource.y, brushSize, brushSize);
+        ctx.putImageData(imageData, x, y);
+      }
+    } else if (isCropping) {
+      // draw crop rectangle preview
+      drawImage();
+      ctx.strokeStyle = 'red';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6]);
+      ctx.strokeRect(startX, startY, x - startX, y - startY);
+      ctx.setLineDash([]);
+      endX = x;
+      endY = y;
+    }
+  };
+
+  canvas.onmouseup = (e) => {
+    if (isDrawing) {
+      isDrawing = false;
+      saveHistory();
+    }
+    if (isCropping) {
+      isCropping = false;
+      cropCanvas();
+      saveHistory();
+    }
+  };
+
+  // Crop function
+  function cropCanvas() {
+    const width = endX - startX;
+    const height = endY - startY;
+    if (width <= 0 || height <= 0) return;
+    const imageData = ctx.getImageData(startX, startY, width, height);
+    canvas.width = width;
+    canvas.height = height;
+    ctx.putImageData(imageData, 0, 0);
+    img.src = canvas.toDataURL();
+  }
+
+  // Rotate function
+  function rotateCanvas() {
+    const tempCanvas = document.createElement('canvas');
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCanvas.width = canvas.height;
+    tempCanvas.height = canvas.width;
+    tempCtx.translate(tempCanvas.width/2, tempCanvas.height/2);
+    tempCtx.rotate(Math.PI / 2);
+    tempCtx.drawImage(canvas, -canvas.width/2, -canvas.height/2);
+    canvas.width = tempCanvas.width;
+    canvas.height = tempCanvas.height;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(tempCanvas, 0, 0);
+    img.src = canvas.toDataURL();
+    saveHistory();
+  }
+
+  // Apply filters
+  function applyFilter(type, value=100) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    let filterStr = '';
+    switch(type) {
+      case 'brightness':
+        filterStr = `brightness(${100 + parseInt(value)}%)`;
+        break;
+      case 'contrast':
+        filterStr = `contrast(${100 + parseInt(value)}%)`;
+        break;
+      case 'grayscale':
+        filterStr = 'grayscale(100%)';
+        break;
+      case 'sepia':
+        filterStr = 'sepia(100%)';
+        break;
+      case 'invert':
+        filterStr = 'invert(100%)';
+        break;
+      default:
+        filterStr = 'none';
+    }
+    ctx.filter = filterStr;
+    ctx.drawImage(img, 0, 0);
+    ctx.filter = 'none';
+    saveHistory();
+  }
+
+  // Draw image function
+  function drawImage() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0);
+  }
+
+  // Zoom in/out/reset
+  document.getElementById('zoomInBtn').onclick = () => {
+    scale += 0.1;
+    updateTransform();
+  };
+  document.getElementById('zoomOutBtn').onclick = () => {
+    if (scale > 0.2) {
+      scale -= 0.1;
+      updateTransform();
+    }
+  };
+  document.getElementById('resetViewBtn').onclick = () => {
+    scale = 1;
+    offsetX = 0;
+    offsetY = 0;
+    updateTransform();
+  };
+
+  function updateTransform() {
+    canvas.style.transform = `scale(${scale}) translate(${offsetX}px, ${offsetY}px)`;
+  }
+
+  // Save/export
+  document.getElementById('saveBtn').onclick = () => {
+    alert('Fitur simpan belum terimplementasi, gunakan Export');
+  };
+
+  document.getElementById('exportBtn').onclick = () => {
+    const dataUrl = canvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.download = 'dsrt-image.png';
+    link.href = dataUrl;
+    link.click();
+  };
+
+  // Right-click clone source set
+  canvas.oncontextmenu = (e) => {
+    e.preventDefault();
+    if (currentTool === 'cloneStamp') {
+      const rect = canvas.getBoundingClientRect();
+      const x = (e.clientX - rect.left)/scale - offsetX;
+      const y = (e.clientY - rect.top)/scale - offsetY;
+      cloneSource = {x, y};
+      alert(`Clone source set at (${Math.round(x)}, ${Math.round(y)})`);
+    }
+  };
+</script>
+
+</body>
+</html>
