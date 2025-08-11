@@ -3,420 +3,726 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>DSRT Full Template</title>
+<title>DSRT Image Editor</title>
 <style>
-  body,html {
-    margin:0; padding:0; height:100%; font-family: Arial, sans-serif;
-    display: flex; flex-direction: column;
-  }
+  /* Reset & base */
+  * { box-sizing: border-box; }
+  body, html { margin:0; padding:0; height:100vh; font-family: Poppins, sans-serif; background:#121212; color:#eee; }
+  #app { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+  /* Header */
   header {
-    height: 50px; background:#222; color:#fff; display: flex; align-items: center; padding: 0 20px;
+    height: 50px; background:#222; display: flex; align-items:center; padding: 0 10px;
   }
-  header .logo { font-weight: bold; font-size: 20px; }
-  header nav { margin-left: 30px; display: flex; gap: 20px; }
-  header nav button {
-    background: #444; border:none; color:#fff; padding: 6px 14px; cursor:pointer;
+  #backBtn {
+    background:none; border:none; color:#0ff; font-size:24px; cursor:pointer; margin-right:10px;
   }
-  .container {
-    flex:1; display:flex; height: calc(100vh - 100px);
+  #logo { font-weight:700; font-size: 20px; flex-grow:1; }
+  #menuToggle {
+    background:none; border:none; color:#0ff; font-size:28px; cursor:pointer;
+    display:none; /* only mobile */
   }
-  .sidebar-left, .sidebar-right {
-    background:#f5f5f5; padding: 15px; overflow-y: auto; box-sizing: border-box;
+  @media(max-width:900px) {
+    #menuToggle { display:inline-block; }
   }
-  .sidebar-left { width: 250px; border-right: 1px solid #ccc; }
-  .sidebar-right { width: 250px; border-left: 1px solid #ccc; }
-  main {
-    flex:1; display:flex; justify-content: center; align-items: center; background: #ddd; position: relative;
+
+  /* Main area */
+  #main {
+    flex-grow:1; display: flex; overflow: hidden;
   }
-  #canvas {
-    background: white; border: 1px solid #aaa; max-width: 100%; max-height: 100%;
-    cursor: crosshair;
+
+  /* Sidebar kiri */
+  #sidebarLeft {
+    width: 250px; background:#222; padding:10px; overflow-y: auto;
+    transition: transform 0.3s ease;
   }
-  button.tool-btn {
-    width: 100%; margin: 6px 0; padding: 10px; border:1px solid #ccc; background:#fff; cursor:pointer;
-    font-size: 14px;
+  #sidebarLeft.hide {
+    transform: translateX(-260px);
   }
-  button.tool-btn.active {
-    background:#007bff; color:#fff; border-color:#007bff;
+  #sidebarLeft h3 {
+    margin-top:0; margin-bottom:10px; color:#0ff; border-bottom: 1px solid #0ff;
   }
-  .slider-group {
-    margin: 10px 0;
+  #sidebarLeft button.toolBtn {
+    width: 100%; margin:5px 0; padding:8px; background:#333; border:none; color:#0ff; font-weight:600; cursor:pointer;
   }
-  label {
-    display: block; margin-bottom: 5px; font-weight: 600;
+  #sidebarLeft button.toolBtn.active {
+    background:#0ff; color:#222;
   }
-  input[type=range] {
+  #closeSidebar {
+    background:none; border:none; color:#f33; font-size: 28px; float:right; cursor:pointer;
+  }
+
+  /* Sidebar kanan */
+  #sidebarRight {
+    width: 250px; background:#222; padding:10px; overflow-y: auto;
+    color:#0ff;
+    transition: transform 0.3s ease;
+  }
+  #sidebarRight.hide {
+    transform: translateX(260px);
+  }
+  #sidebarRight h3 {
+    margin-top:0; margin-bottom:10px; border-bottom:1px solid #0ff;
+  }
+  #sidebarRight label {
+    display:block; margin-top:10px;
+  }
+  #sidebarRight input[type=range] {
     width: 100%;
   }
+
+  /* Canvas container */
+  #canvasContainer {
+    flex-grow:1; background:#111; display:flex; justify-content:center; align-items:center; position: relative;
+    overflow: hidden;
+    touch-action: none;
+  }
+  canvas {
+    background:#222;
+    max-width: 100%;
+    max-height: 100%;
+    user-select:none;
+    touch-action:none;
+    cursor: crosshair;
+    image-rendering: pixelated;
+    border-radius:4px;
+  }
+
+  /* Footer toolbar */
   footer {
-    height: 50px; background:#222; color:#fff; display:flex; justify-content:center; align-items:center; gap: 15px;
+    height: 50px; background:#222; display:flex; align-items:center; justify-content:center; gap:15px;
+    padding:0 10px;
   }
   footer button {
-    background:#444; border:none; color:#fff; padding: 8px 15px; cursor:pointer;
+    background:#0ff; border:none; padding:8px 12px; border-radius:4px; font-weight:700; cursor:pointer;
+    color:#222;
+    user-select:none;
   }
-  #upload {
-    margin-top: 15px;
+  footer button:disabled {
+    background:#444; cursor:not-allowed; color:#888;
+  }
+
+  /* Upload button floating */
+  #uploadBtn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 10;
+  }
+  #uploadInput {
+    display:none;
+  }
+
+  /* Responsive */
+  @media(max-width:900px){
+    #sidebarLeft, #sidebarRight {
+      position: fixed;
+      top: 50px; bottom: 50px;
+      z-index: 20;
+      box-shadow: 2px 0 8px rgba(0,0,0,0.8);
+      background:#222;
+    }
+    #sidebarLeft.hide {
+      transform: translateX(-260px);
+    }
+    #sidebarRight.hide {
+      transform: translateX(260px);
+    }
+    #menuToggle { display:inline-block; }
+    #sidebarRight { right: 0; }
+    #sidebarLeft { left: 0; }
+    #canvasContainer {
+      flex-grow:1; /* full area under header/footer */
+    }
   }
 </style>
 </head>
 <body>
+<div id="app">
+  <header>
+    <button id="backBtn" title="Back">&#8592;</button>
+    <div id="logo">DSRT Image Editor</div>
+    <button id="menuToggle" title="Toggle Menu">&#9776;</button>
+  </header>
+  <div id="main">
+    <aside id="sidebarLeft" class="hide" aria-label="Sidebar tools">
+      <button id="closeSidebar" title="Close Sidebar">&times;</button>
+      <h3>Manual Tools</h3>
+      <button class="toolBtn" data-tool="crop">Crop</button>
+      <button class="toolBtn" data-tool="rotate">Rotate 90°</button>
+      <button class="toolBtn" data-tool="brush">Brush</button>
+      <button class="toolBtn" data-tool="eraser">Eraser</button>
+      <h3>Restoration</h3>
+      <button class="toolBtn" data-tool="spotHealing">Spot Healing</button>
+      <button class="toolBtn" data-tool="cloneStamp">Clone Stamp</button>
+      <h3>Filters</h3>
+      <button class="toolBtn" data-tool="brightness">Brightness</button>
+      <button class="toolBtn" data-tool="contrast">Contrast</button>
+      <button class="toolBtn" data-tool="grayscale">Grayscale</button>
+      <button class="toolBtn" data-tool="sepia">Sepia</button>
+      <button class="toolBtn" data-tool="invert">Invert</button>
+    </aside>
 
-<header>
-  <div class="logo">DSRT</div>
-  <nav>
-    <button id="homeBtn">Home</button>
-    <button id="toolsBtn">Tools</button>
-    <button id="restoreBtn">Restore</button>
-    <button id="filterBtn">Filter</button>
-  </nav>
-</header>
-
-<div class="container">
-  <aside class="sidebar-left">
-    <h3>Manual Tools</h3>
-    <button class="tool-btn" data-tool="crop">Crop</button>
-    <button class="tool-btn" data-tool="rotate">Rotate 90°</button>
-    <button class="tool-btn" data-tool="brush">Brush</button>
-    <button class="tool-btn" data-tool="eraser">Eraser</button>
-
-    <h3>Restoration Tools</h3>
-    <button class="tool-btn" data-tool="spotHealing">Spot Healing</button>
-    <button class="tool-btn" data-tool="cloneStamp">Clone Stamp</button>
-
-    <h3>Filter Tools</h3>
-    <button class="tool-btn" data-tool="brightness">Brightness</button>
-    <button class="tool-btn" data-tool="contrast">Contrast</button>
-    <button class="tool-btn" data-tool="grayscale">Grayscale</button>
-    <button class="tool-btn" data-tool="sepia">Sepia</button>
-    <button class="tool-btn" data-tool="invert">Invert</button>
-  </aside>
-
-  <main>
-    <canvas id="canvas" width="800" height="600"></canvas>
-    <input type="file" id="upload" accept="image/*" />
-  </main>
-
-  <aside class="sidebar-right">
-    <h3>Properties</h3>
-    <div id="toolProperties">
-      <p>Pilih tool dulu</p>
+    <div id="canvasContainer" tabindex="0" aria-label="Image editing canvas">
+      <input type="file" id="uploadInput" accept="image/*" />
+      <button id="uploadBtn" title="Upload Image">Choose File</button>
+      <canvas id="canvas" width="800" height="600"></canvas>
     </div>
-  </aside>
+
+    <aside id="sidebarRight" class="hide" aria-label="Tool properties">
+      <h3>Properties</h3>
+      <div id="toolProperties">Pilih tool dulu</div>
+    </aside>
+  </div>
+
+  <footer>
+    <button id="undoBtn" disabled>Undo</button>
+    <button id="redoBtn" disabled>Redo</button>
+    <button id="zoomInBtn">Zoom In</button>
+    <button id="zoomOutBtn">Zoom Out</button>
+    <button id="resetViewBtn">Reset View</button>
+    <button id="saveBtn" disabled>Save</button>
+    <button id="exportBtn" disabled>Export</button>
+  </footer>
 </div>
 
-<footer>
-  <button id="undoBtn">Undo</button>
-  <button id="redoBtn">Redo</button>
-  <button id="zoomInBtn">Zoom In</button>
-  <button id="zoomOutBtn">Zoom Out</button>
-  <button id="resetViewBtn">Reset View</button>
-  <button id="saveBtn">Save</button>
-  <button id="exportBtn">Export</button>
-</footer>
-
 <script>
+(() => {
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d');
-  const upload = document.getElementById('upload');
-  const toolButtons = document.querySelectorAll('.tool-btn');
-  const toolProperties = document.getElementById('toolProperties');
 
-  let currentTool = null;
+  // State
   let img = new Image();
-  let history = [];
-  let historyStep = -1;
-  let drawing = false;
-  let brushSize = 10;
+  let imgLoaded = false;
   let scale = 1;
   let offsetX = 0;
   let offsetY = 0;
 
-  // Load image from file input
-  upload.addEventListener('change', (e) => {
+  // Undo stack
+  const undoStack = [];
+  const redoStack = [];
+  const maxHistory = 10;
+
+  // Current tool and parameters
+  let currentTool = null;
+  let brushSize = 15;
+  let eraserSize = 20;
+
+  // Tool flags
+  let isDrawing = false;
+  let lastPos = null;
+
+  // Sidebar toggle
+  const sidebarLeft = document.getElementById('sidebarLeft');
+  const sidebarRight = document.getElementById('sidebarRight');
+  const menuToggle = document.getElementById('menuToggle');
+  const closeSidebar = document.getElementById('closeSidebar');
+
+  // Upload elements
+  const uploadInput = document.getElementById('uploadInput');
+  const uploadBtn = document.getElementById('uploadBtn');
+
+  // Buttons
+  const backBtn = document.getElementById('backBtn');
+  const undoBtn = document.getElementById('undoBtn');
+  const redoBtn = document.getElementById('redoBtn');
+  const zoomInBtn = document.getElementById('zoomInBtn');
+  const zoomOutBtn = document.getElementById('zoomOutBtn');
+  const resetViewBtn = document.getElementById('resetViewBtn');
+  const saveBtn = document.getElementById('saveBtn');
+  const exportBtn = document.getElementById('exportBtn');
+
+  // Tool buttons
+  const toolButtons = document.querySelectorAll('.toolBtn');
+  const toolProperties = document.getElementById('toolProperties');
+
+  // Helper: Draw image on canvas with current scale and offset
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (!imgLoaded) return;
+    ctx.save();
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(scale, scale);
+    ctx.drawImage(img, 0, 0);
+    ctx.restore();
+  }
+
+  // Load image to canvas (and reset transforms)
+  function loadImageToCanvas(image) {
+    img = image;
+    imgLoaded = true;
+    scale = 1;
+    offsetX = 0;
+    offsetY = 0;
+
+    // Resize canvas to fit image max 800x600 keeping ratio
+    let w = img.width;
+    let h = img.height;
+    const maxW = 800;
+    const maxH = 600;
+    if(w > maxW){
+      h = h * maxW / w;
+      w = maxW;
+    }
+    if(h > maxH){
+      w = w * maxH / h;
+      h = maxH;
+    }
+    canvas.width = w;
+    canvas.height = h;
+
+    saveState(); // Save initial state
+    draw();
+    saveBtn.disabled = false;
+    exportBtn.disabled = false;
+  }
+
+  // Save current canvas state to undo stack
+  function saveState() {
+    if(!imgLoaded) return;
+    if(undoStack.length >= maxHistory){
+      undoStack.shift();
+    }
+    undoStack.push(canvas.toDataURL());
+    redoStack.length = 0;
+    updateUndoRedoButtons();
+  }
+
+  function updateUndoRedoButtons() {
+    undoBtn.disabled = undoStack.length <= 1;
+    redoBtn.disabled = redoStack.length === 0;
+  }
+
+  // Undo action
+  undoBtn.onclick = () => {
+    if(undoStack.length > 1){
+      const dataUrl = undoStack.pop();
+      redoStack.push(dataUrl);
+      const prev = undoStack[undoStack.length-1];
+      restoreFromDataUrl(prev);
+      updateUndoRedoButtons();
+    }
+  };
+
+  // Redo action
+  redoBtn.onclick = () => {
+    if(redoStack.length > 0){
+      const dataUrl = redoStack.pop();
+      undoStack.push(dataUrl);
+      restoreFromDataUrl(dataUrl);
+      updateUndoRedoButtons();
+    }
+  };
+
+  function restoreFromDataUrl(dataUrl) {
+    const imgTmp = new Image();
+    imgTmp.onload = () => {
+      img = imgTmp;
+      imgLoaded = true;
+      canvas.width = img.width;
+      canvas.height = img.height;
+      draw();
+    };
+    imgTmp.src = dataUrl;
+  }
+
+  // Upload file handler
+  uploadInput.addEventListener('change', e => {
+    if(e.target.files.length === 0) return;
     const file = e.target.files[0];
-    if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      img.src = ev.target.result;
+    reader.onload = evt => {
+      const image = new Image();
+      image.onload = () => loadImageToCanvas(image);
+      image.src = evt.target.result;
     };
     reader.readAsDataURL(file);
   });
 
-  img.onload = () => {
-    canvas.width = img.width;
-    canvas.height = img.height;
-    resetView();
-    drawImage();
-    saveHistory();
-  };
-
-  // History management
-  function saveHistory() {
-    if (historyStep < history.length -1) {
-      history = history.slice(0, historyStep + 1);
-    }
-    history.push(canvas.toDataURL());
-    historyStep++;
-  }
-
-  function loadFromHistory() {
-    if (historyStep < 0) return;
-    const imgRestore = new Image();
-    imgRestore.src = history[historyStep];
-    imgRestore.onload = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(imgRestore, 0, 0);
-    };
-  }
-
-  document.getElementById('undoBtn').onclick = () => {
-    if (historyStep > 0) {
-      historyStep--;
-      loadFromHistory();
-    }
-  };
-
-  document.getElementById('redoBtn').onclick = () => {
-    if (historyStep < history.length -1) {
-      historyStep++;
-      loadFromHistory();
-    }
+  uploadBtn.onclick = () => {
+    uploadInput.click();
   };
 
   // Tool selection
   toolButtons.forEach(btn => {
     btn.addEventListener('click', () => {
-      currentTool = btn.dataset.tool;
-      toolButtons.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      showProperties(currentTool);
+      if(currentTool === btn.dataset.tool){
+        // toggle off
+        currentTool = null;
+        btn.classList.remove('active');
+        toolProperties.innerHTML = 'Pilih tool dulu';
+        sidebarRight.classList.add('hide');
+        canvas.style.cursor = 'default';
+      } else {
+        // select new tool
+        currentTool = btn.dataset.tool;
+        toolButtons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        updatePropertiesForTool(currentTool);
+        sidebarRight.classList.remove('hide');
+        canvas.style.cursor = currentTool==='brush' ? 'crosshair' : 'default';
+      }
     });
   });
 
-  function showProperties(tool) {
-    toolProperties.innerHTML = '';
-    if (tool === 'brightness' || tool === 'contrast') {
-      const label = document.createElement('label');
-      label.textContent = tool.charAt(0).toUpperCase() + tool.slice(1) + ':';
-      const slider = document.createElement('input');
-      slider.type = 'range';
-      slider.min = -100;
-      slider.max = 100;
-      slider.value = 0;
-      slider.oninput = () => applyFilter(tool, slider.value);
-      toolProperties.appendChild(label);
-      toolProperties.appendChild(slider);
-    } else if (tool === 'brush' || tool === 'eraser' || tool === 'spotHealing' || tool === 'cloneStamp') {
-      const label = document.createElement('label');
-      label.textContent = 'Brush Size:';
-      const slider = document.createElement('input');
-      slider.type = 'range';
-      slider.min = 1;
-      slider.max = 50;
-      slider.value = brushSize;
-      slider.oninput = () => {
-        brushSize = parseInt(slider.value);
-      };
-      toolProperties.appendChild(label);
-      toolProperties.appendChild(slider);
-    } else if (tool === 'crop') {
-      toolProperties.textContent = 'Drag pada canvas untuk crop area.';
-    } else if (tool === 'rotate') {
-      const btn = document.createElement('button');
-      btn.textContent = 'Rotate 90°';
-      btn.onclick = () => rotateCanvas();
-      toolProperties.appendChild(btn);
-    } else if (tool === 'grayscale' || tool === 'sepia' || tool === 'invert') {
-      const btn = document.createElement('button');
-      btn.textContent = 'Apply ' + tool.charAt(0).toUpperCase() + tool.slice(1);
-      btn.onclick = () => applyFilter(tool);
-      toolProperties.appendChild(btn);
-    } else {
-      toolProperties.textContent = 'Pilih tool dulu';
-    }
-  }
-
-  // Variables for drawing and crop
-  let startX, startY, endX, endY;
-  let isCropping = false;
-  let isDrawing = false;
-  let cloneSource = null;
-
-  canvas.onmousedown = (e) => {
-    const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left)/scale - offsetX;
-    const y = (e.clientY - rect.top)/scale - offsetY;
-    if (currentTool === 'brush' || currentTool === 'eraser' || currentTool === 'spotHealing' || currentTool === 'cloneStamp') {
-      isDrawing = true;
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-    } else if (currentTool === 'crop') {
-      isCropping = true;
-      startX = x;
-      startY = y;
-    } else if (currentTool === 'cloneStamp') {
-      // handled separately for right click clone source
-    }
-  };
-
-  canvas.onmousemove = (e) => {
-    const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left)/scale - offsetX;
-    const y = (e.clientY - rect.top)/scale - offsetY;
-    if (isDrawing) {
-      if (currentTool === 'brush') {
-        ctx.strokeStyle = 'black';
-        ctx.lineWidth = brushSize;
-        ctx.lineCap = 'round';
-        ctx.lineTo(x, y);
-        ctx.stroke();
-      } else if (currentTool === 'eraser') {
-        ctx.clearRect(x - brushSize/2, y - brushSize/2, brushSize, brushSize);
-      } else if (currentTool === 'spotHealing') {
-        // simple clone stamp like spot healing
-        ctx.clearRect(x - brushSize/2, y - brushSize/2, brushSize, brushSize);
-      } else if (currentTool === 'cloneStamp' && cloneSource) {
-        const dx = x - cloneSource.x;
-        const dy = y - cloneSource.y;
-        const imageData = ctx.getImageData(cloneSource.x, cloneSource.y, brushSize, brushSize);
-        ctx.putImageData(imageData, x, y);
-      }
-    } else if (isCropping) {
-      // draw crop rectangle preview
-      drawImage();
-      ctx.strokeStyle = 'red';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([6]);
-      ctx.strokeRect(startX, startY, x - startX, y - startY);
-      ctx.setLineDash([]);
-      endX = x;
-      endY = y;
-    }
-  };
-
-  canvas.onmouseup = (e) => {
-    if (isDrawing) {
-      isDrawing = false;
-      saveHistory();
-    }
-    if (isCropping) {
-      isCropping = false;
-      cropCanvas();
-      saveHistory();
-    }
-  };
-
-  // Crop function
-  function cropCanvas() {
-    const width = endX - startX;
-    const height = endY - startY;
-    if (width <= 0 || height <= 0) return;
-    const imageData = ctx.getImageData(startX, startY, width, height);
-    canvas.width = width;
-    canvas.height = height;
-    ctx.putImageData(imageData, 0, 0);
-    img.src = canvas.toDataURL();
-  }
-
-  // Rotate function
-  function rotateCanvas() {
-    const tempCanvas = document.createElement('canvas');
-    const tempCtx = tempCanvas.getContext('2d');
-    tempCanvas.width = canvas.height;
-    tempCanvas.height = canvas.width;
-    tempCtx.translate(tempCanvas.width/2, tempCanvas.height/2);
-    tempCtx.rotate(Math.PI / 2);
-    tempCtx.drawImage(canvas, -canvas.width/2, -canvas.height/2);
-    canvas.width = tempCanvas.width;
-    canvas.height = tempCanvas.height;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(tempCanvas, 0, 0);
-    img.src = canvas.toDataURL();
-    saveHistory();
-  }
-
-  // Apply filters
-  function applyFilter(type, value=100) {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    let filterStr = '';
-    switch(type) {
+  // Update properties panel for selected tool
+  function updatePropertiesForTool(tool) {
+    let html = '';
+    switch(tool){
+      case 'brush':
+        html = `<label>Brush Size: <input type="range" id="brushSize" min="1" max="50" value="${brushSize}"></label>`;
+        break;
+      case 'eraser':
+        html = `<label>Eraser Size: <input type="range" id="eraserSize" min="1" max="50" value="${eraserSize}"></label>`;
+        break;
       case 'brightness':
-        filterStr = `brightness(${100 + parseInt(value)}%)`;
-        break;
       case 'contrast':
-        filterStr = `contrast(${100 + parseInt(value)}%)`;
+        html = `<label>${tool.charAt(0).toUpperCase() + tool.slice(1)}: <input type="range" id="${tool}Range" min="-100" max="100" value="0"></label>`;
         break;
-      case 'grayscale':
-        filterStr = 'grayscale(100%)';
+      case 'crop':
+        html = `<p>Drag di canvas untuk memilih area crop, lalu klik Apply Crop di bawah.</p><button id="applyCropBtn">Apply Crop</button>`;
         break;
-      case 'sepia':
-        filterStr = 'sepia(100%)';
+      case 'rotate':
+        html = `<button id="rotateBtn">Putar 90°</button>`;
         break;
-      case 'invert':
-        filterStr = 'invert(100%)';
+      case 'spotHealing':
+        html = `<p>Gunakan kuas untuk menghapus noda dengan blur.</p><label>Brush Size: <input type="range" id="brushSize" min="1" max="50" value="${brushSize}"></label>`;
+        break;
+      case 'cloneStamp':
+        html = `<p>Klik area sumber lalu kuas area target.</p><label>Brush Size: <input type="range" id="brushSize" min="1" max="50" value="${brushSize}"></label>`;
         break;
       default:
-        filterStr = 'none';
+        html = `<p>Atur properti jika ada.</p>`;
     }
-    ctx.filter = filterStr;
-    ctx.drawImage(img, 0, 0);
-    ctx.filter = 'none';
-    saveHistory();
-  }
+    toolProperties.innerHTML = html;
 
-  // Draw image function
-  function drawImage() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0);
-  }
-
-  // Zoom in/out/reset
-  document.getElementById('zoomInBtn').onclick = () => {
-    scale += 0.1;
-    updateTransform();
-  };
-  document.getElementById('zoomOutBtn').onclick = () => {
-    if (scale > 0.2) {
-      scale -= 0.1;
-      updateTransform();
+    // Add event listeners for sliders/buttons dynamically
+    if(tool==='brush'){
+      document.getElementById('brushSize').addEventListener('input', e => brushSize = +e.target.value);
     }
-  };
-  document.getElementById('resetViewBtn').onclick = () => {
-    scale = 1;
-    offsetX = 0;
-    offsetY = 0;
-    updateTransform();
-  };
+    if(tool==='eraser'){
+      document.getElementById('eraserSize').addEventListener('input', e => eraserSize = +e.target.value);
+    }
+    if(tool==='brightness'){
+      document.getElementById('brightnessRange').addEventListener('input', e => applyFilter('brightness', +e.target.value));
+    }
+    if(tool==='contrast'){
+      document.getElementById('contrastRange').addEventListener('input', e => applyFilter('contrast', +e.target.value));
+    }
+    if(tool==='crop'){
+      document.getElementById('applyCropBtn').addEventListener('click', applyCrop);
+    }
+    if(tool==='rotate'){
+      document.getElementById('rotateBtn').addEventListener('click', rotateImage);
+    }
+    if(tool==='spotHealing'){
+      document.getElementById('brushSize').addEventListener('input', e => brushSize = +e.target.value);
+    }
+    if(tool==='cloneStamp'){
+      document.getElementById('brushSize').addEventListener('input', e => brushSize = +e.target.value);
+    }
+  }
+  <script>
+  // Crop selection vars
+  let cropStart = null;
+  let cropEnd = null;
+  let isCropping = false;
 
-  function updateTransform() {
-    canvas.style.transform = `scale(${scale}) translate(${offsetX}px, ${offsetY}px)`;
+  // Mouse/touch handlers for canvas
+  function getCanvasPos(evt) {
+    const rect = canvas.getBoundingClientRect();
+    let x, y;
+    if(evt.touches){
+      x = evt.touches[0].clientX - rect.left;
+      y = evt.touches[0].clientY - rect.top;
+    } else {
+      x = evt.clientX - rect.left;
+      y = evt.clientY - rect.top;
+    }
+    return {x,y};
   }
 
-  // Save/export
-  document.getElementById('saveBtn').onclick = () => {
-    alert('Fitur simpan belum terimplementasi, gunakan Export');
-  };
+  canvas.addEventListener('mousedown', startDrawing);
+  canvas.addEventListener('touchstart', startDrawing);
+  canvas.addEventListener('mousemove', drawOnCanvas);
+  canvas.addEventListener('touchmove', drawOnCanvas);
+  canvas.addEventListener('mouseup', stopDrawing);
+  canvas.addEventListener('touchend', stopDrawing);
+  canvas.addEventListener('mouseout', stopDrawing);
 
-  document.getElementById('exportBtn').onclick = () => {
-    const dataUrl = canvas.toDataURL('image/png');
-    const link = document.createElement('a');
-    link.download = 'dsrt-image.png';
-    link.href = dataUrl;
-    link.click();
-  };
+  function startDrawing(e){
+    if(!currentTool) return;
+    const pos = getCanvasPos(e);
+    if(currentTool === 'crop'){
+      cropStart = pos;
+      cropEnd = null;
+      isCropping = true;
+      draw(); // redraw to clear selection
+      drawCropRect();
+    } else if(['brush','eraser','spotHealing','cloneStamp'].includes(currentTool)){
+      isDrawing = true;
+      lastPos = pos;
+      saveState();
+    }
+  }
 
-  // Right-click clone source set
-  canvas.oncontextmenu = (e) => {
+  function drawOnCanvas(e){
+    if(!isDrawing) return;
     e.preventDefault();
-    if (currentTool === 'cloneStamp') {
-      const rect = canvas.getBoundingClientRect();
-      const x = (e.clientX - rect.left)/scale - offsetX;
-      const y = (e.clientY - rect.top)/scale - offsetY;
-      cloneSource = {x, y};
-      alert(`Clone source set at (${Math.round(x)}, ${Math.round(y)})`);
+    const pos = getCanvasPos(e);
+    if(currentTool === 'brush'){
+      drawBrush(pos);
+    } else if(currentTool === 'eraser'){
+      drawEraser(pos);
+    } else if(currentTool === 'spotHealing'){
+      drawSpotHealing(pos);
     }
-  };
-</script>
+    lastPos = pos;
+  }
 
-</body>
-</html>
+  function stopDrawing(e){
+    if(currentTool === 'crop' && isCropping){
+      isCropping = false;
+    }
+    if(isDrawing){
+      isDrawing = false;
+      saveState();
+    }
+  }
+
+  function drawBrush(pos){
+  ctx.save();
+  ctx.translate(offsetX, offsetY);
+  ctx.scale(scale, scale);
+  ctx.lineCap = "round";
+  ctx.strokeStyle = "#0ff";
+  ctx.lineWidth = brushSize;
+  ctx.beginPath();
+  ctx.moveTo(lastPos.x / scale, lastPos.y / scale);
+  ctx.lineTo(pos.x / scale, pos.y / scale);
+  ctx.stroke();
+  ctx.restore();
+  lastPos = pos;
+}
+
+function drawEraser(pos){
+  ctx.save();
+  ctx.translate(offsetX, offsetY);
+  ctx.scale(scale, scale);
+  ctx.globalCompositeOperation = "destination-out";
+  ctx.beginPath();
+  ctx.arc(pos.x / scale, pos.y / scale, eraserSize / 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalCompositeOperation = "source-over";
+  ctx.restore();
+  lastPos = pos;
+}
+
+function drawSpotHealing(pos){
+  // Simple blur placeholder: samples pixels around to blur
+  ctx.save();
+  ctx.translate(offsetX, offsetY);
+  ctx.scale(scale, scale);
+
+  let radius = brushSize;
+  let imageData = ctx.getImageData(
+    pos.x / scale - radius,
+    pos.y / scale - radius,
+    radius * 2,
+    radius * 2
+  );
+
+  // Naive blur by averaging pixels (very simple)
+  for(let i=0; i < imageData.data.length; i+=4){
+    imageData.data[i] = (imageData.data[i] + imageData.data[i+4] || imageData.data[i]) / 2;
+    imageData.data[i+1] = (imageData.data[i+1] + imageData.data[i+5] || imageData.data[i+1]) / 2;
+    imageData.data[i+2] = (imageData.data[i+2] + imageData.data[i+6] || imageData.data[i+2]) / 2;
+  }
+
+  ctx.putImageData(imageData, pos.x / scale - radius, pos.y / scale - radius);
+  ctx.restore();
+  lastPos = pos;
+}
+
+function drawCropRect(){
+  if(!cropStart || !cropEnd) return;
+  ctx.save();
+  ctx.strokeStyle = "#0ff";
+  ctx.lineWidth = 2;
+  ctx.setLineDash([6]);
+  let x = Math.min(cropStart.x, cropEnd.x);
+  let y = Math.min(cropStart.y, cropEnd.y);
+  let w = Math.abs(cropEnd.x - cropStart.x);
+  let h = Math.abs(cropEnd.y - cropStart.y);
+  ctx.strokeRect(x, y, w, h);
+  ctx.restore();
+}
+
+canvas.addEventListener("mousemove", (e) => {
+  if(currentTool === "crop" && isCropping){
+    cropEnd = getCanvasPos(e);
+    draw();
+    drawCropRect();
+  }
+});
+canvas.addEventListener("touchmove", (e) => {
+  if(currentTool === "crop" && isCropping){
+    cropEnd = getCanvasPos(e);
+    draw();
+    drawCropRect();
+  }
+});
+
+function applyCrop(){
+  if(!cropStart || !cropEnd) return alert("Pilih area crop dulu!");
+  let x = Math.min(cropStart.x, cropEnd.x);
+  let y = Math.min(cropStart.y, cropEnd.y);
+  let w = Math.abs(cropEnd.x - cropStart.x);
+  let h = Math.abs(cropEnd.y - cropStart.y);
+
+  const croppedData = ctx.getImageData(x, y, w, h);
+
+  canvas.width = w;
+  canvas.height = h;
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.putImageData(croppedData, 0, 0);
+
+  saveState();
+
+  cropStart = null;
+  cropEnd = null;
+
+  draw();
+}
+
+function rotateImage(){
+  if(!imgLoaded) return;
+  saveState();
+
+  const tempCanvas = document.createElement("canvas");
+  const tempCtx = tempCanvas.getContext("2d");
+  tempCanvas.width = canvas.height;
+  tempCanvas.height = canvas.width;
+
+  tempCtx.translate(tempCanvas.width / 2, tempCanvas.height / 2);
+  tempCtx.rotate(Math.PI / 2);
+  tempCtx.drawImage(canvas, -canvas.width / 2, -canvas.height / 2);
+
+  canvas.width = tempCanvas.width;
+  canvas.height = tempCanvas.height;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(tempCanvas, 0, 0);
+
+  saveState();
+}
+
+function applyFilter(type, value){
+  if(!imgLoaded) return;
+  saveState();
+
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = imageData.data;
+
+  if(type === "brightness"){
+    const v = value * 2.55; 
+    for(let i=0; i < data.length; i+=4){
+      data[i] = clamp(data[i] + v);
+      data[i+1] = clamp(data[i+1] + v);
+      data[i+2] = clamp(data[i+2] + v);
+    }
+  } else if(type === "contrast"){
+    const v = (value / 100) + 1;
+    for(let i=0; i < data.length; i+=4){
+      data[i] = clamp(((data[i]-128)*v)+128);
+      data[i+1] = clamp(((data[i+1]-128)*v)+128);
+      data[i+2] = clamp(((data[i+2]-128)*v)+128);
+    }
+  } else if(type === "grayscale"){
+    for(let i=0; i < data.length; i+=4){
+      const avg = (data[i] + data[i+1] + data[i+2])/3;
+      data[i] = data[i+1] = data[i+2] = avg;
+    }
+  } else if(type === "sepia"){
+    for(let i=0; i < data.length; i+=4){
+      const r = data[i], g = data[i+1], b = data[i+2];
+      data[i] = clamp(r*0.393 + g*0.769 + b*0.189);
+      data[i+1] = clamp(r*0.349 + g*0.686 + b*0.168);
+      data[i+2] = clamp(r*0.272 + g*0.534 + b*0.131);
+    }
+  } else if(type === "invert"){
+    for(let i=0; i < data.length; i+=4){
+      data[i] = 255 - data[i];
+      data[i+1] = 255 - data[i+1];
+      data[i+2] = 255 - data[i+2];
+    }
+  }
+  ctx.putImageData(imageData, 0, 0);
+}
+
+function clamp(value){
+  return Math.max(0, Math.min(255, value));
+}
+
+// Zoom and pan buttons
+zoomInBtn.onclick = () => {
+  scale = Math.min(5, scale + 0.2);
+  draw();
+};
+zoomOutBtn.onclick = () => {
+  scale = Math.max(0.2, scale - 0.2);
+  draw();
+};
+resetViewBtn.onclick = () => {
+  scale = 1;
+  offsetX = 0;
+  offsetY = 0;
+  draw();
+};
+
+// Save and export
+saveBtn.onclick = () => {
+  alert("Fitur save lokal belum dibuat, implementasi opsional.");
+};
+exportBtn.onclick = () => {
+  if(!imgLoaded) return;
+  const dataUrl = canvas.toDataURL("image/png");
+  const link = document.createElement("a");
+  link.download = "edited_image.png";
+  link.href = dataUrl;
+  link.click();
+};
+
+// Sidebar toggle for mobile
+menuToggle.onclick = () => {
+  if(sidebarLeft.classList.contains("hide")){
+    sidebarLeft.classList.remove("hide");
+  } else {
+    sidebarLeft.classList.add("hide");
+  }
+};
+closeSidebar.onclick = () => {
+  sidebarLeft.classList.add("hide");
+};
+
+// Back button resets everything
+backBtn.onclick = () => {
+  if(confirm("Reset semua dan mulai ulang?")){
+    undoStack.length = 0;
+    redoStack.length = 0;
+    imgLoaded = false;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    saveBtn.disabled = true;
+    exportBtn.disabled = true;
+    toolButtons.forEach(b => b.classList.remove("active"));
+    currentTool = null;
+    sidebarRight.classList.add("hide");
+  }
+};
+
+// Init default
+saveState();
+draw();
+})();
+</script>
