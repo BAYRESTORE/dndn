@@ -1,623 +1,759 @@
-<!DOCTYPE html>
-<html lang="id">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>DSRT Image Editor - Lengkap Siap Pakai</title>
-<style>
-  /* Reset & base */
-  * { box-sizing: border-box; }
-  body, html { margin:0; padding:0; height:100vh; font-family: Poppins, sans-serif; background:#121212; color:#eee; }
-  #app { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+<!DOCTYPE html>  <html lang="id">  
+<head>  
+<meta charset="UTF-8" />  
+<meta name="viewport" content="width=device-width, initial-scale=1" />  
+<title>Fusion Tools - Restorasi Foto</title>  
+<style>  
+  /* Reset dan dasar */  
+  * {  
+    box-sizing: border-box;  
+  }  
+  body, html {  
+    margin: 0; padding: 0; height: 100vh; font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;  
+    background: #121212; color: #eee;  
+    display: flex; flex-direction: column;  
+  }  /* Header Bar */
+header {
+height: 50px;
+background: #1f1f1f;
+display: flex; align-items: center; justify-content: space-between;
+padding: 0 15px;
+border-bottom: 1px solid #333;
+}
+#back-btn {
+background: none; border: none; color: #eee; font-size: 18px; cursor: pointer;
+}
+#title {
+font-weight: 700; font-size: 18px;
+}
+#download-btn {
+background: #2979ff; border: none; color: white; padding: 7px 15px;
+font-weight: 600; cursor: pointer; border-radius: 3px;
+position: relative;
+}
+#download-btn[aria-expanded="true"]::after {
+content: "▲";
+margin-left: 8px;
+}
+#download-btn[aria-expanded="false"]::after {
+content: "▼";
+margin-left: 8px;
+}
 
-  /* Header */
-  header {
-    height: 50px; background:#222; display: flex; align-items:center; padding: 0 10px;
-  }
-  #backBtn {
-    background:none; border:none; color:#0ff; font-size:24px; cursor:pointer; margin-right:10px;
-  }
-  #logo { font-weight:700; font-size: 20px; flex-grow:1; color:#0ff; }
-  #menuToggle {
-    background:none; border:none; color:#0ff; font-size:28px; cursor:pointer;
-    display:none; /* only mobile */
-  }
-  @media(max-width:900px) {
-    #menuToggle { display:inline-block; }
-  }
+/* Popup resolusi */
+#resolution-popup {
+display: none;
+position: absolute;
+right: 15px; top: 50px;
+background: #222;
+border: 1px solid #444;
+border-radius: 4px;
+box-shadow: 0 4px 8px rgb(0 0 0 / 0.7);
+z-index: 100;
+}
+#resolution-popup button {
+display: block;
+width: 130px;
+padding: 8px 12px;
+border: none;
+background: none;
+color: #eee;
+text-align: left;
+cursor: pointer;
+font-weight: 600;
+border-bottom: 1px solid #333;
+}
+#resolution-popup button:last-child {
+border-bottom: none;
+}
+#resolution-popup button:hover {
+background: #2979ff;
+}
 
-  /* Main area */
-  #main {
-    flex-grow:1; display: flex; overflow: hidden;
-  }
+/* Layout utama */
+main {
+flex: 1;
+display: flex;
+overflow: hidden;
+background: #181818;
+}
 
-  /* Sidebar kiri */
-  #sidebarLeft {
-    width: 250px; background:#222; padding:10px; overflow-y: auto;
-    transition: transform 0.3s ease;
-  }
-  #sidebarLeft.hide {
-    transform: translateX(-260px);
-  }
-  #sidebarLeft h3 {
-    margin-top:0; margin-bottom:10px; color:#0ff; border-bottom: 1px solid #0ff;
-  }
-  #sidebarLeft button.toolBtn {
-    width: 100%; margin:5px 0; padding:8px; background:#333; border:none; color:#0ff; font-weight:600; cursor:pointer;
-    border-radius: 4px;
-    user-select:none;
-    transition: background-color 0.3s;
-  }
-  #sidebarLeft button.toolBtn.active {
-    background:#0ff; color:#222;
-  }
-  #closeSidebar {
-    background:none; border:none; color:#f33; font-size: 28px; float:right; cursor:pointer;
-  }
+/* Sidebar kiri */
+aside {
+width: 230px;
+background: #222;
+color: #ddd;
+border-right: 1px solid #333;
+padding: 15px 10px;
+overflow-y: auto;
+}
+aside h3 {
+font-size: 16px;
+margin: 15px 0 8px 8px;
+font-weight: 700;
+color: #97caff;
+}
+.tool-list {
+list-style: none;
+padding-left: 10px;
+margin: 0 0 10px 0;
+}
+.tool-list li {
+cursor: pointer;
+padding: 6px 8px;
+border-radius: 4px;
+margin-bottom: 4px;
+user-select: none;
+font-size: 14px;
+}
+.tool-list li:hover {
+background: #2979ff;
+color: white;
+}
 
-  /* Sidebar kanan */
-  #sidebarRight {
-    width: 250px; background:#222; padding:10px; overflow-y: auto;
-    color:#0ff;
-    transition: transform 0.3s ease;
-  }
-  #sidebarRight.hide {
-    transform: translateX(260px);
-  }
-  #sidebarRight h3 {
-    margin-top:0; margin-bottom:10px; border-bottom:1px solid #0ff;
-  }
-  #sidebarRight label {
-    display:block; margin-top:10px;
-  }
-  #sidebarRight input[type=range] {
-    width: 100%;
-  }
+/* Konten tengah */
+section#content {
+flex: 1;
+display: flex;
+flex-direction: column;
+align-items: center;
+padding: 15px;
+overflow: auto;
+position: relative;
+}
 
-  /* Canvas container */
-  #canvasContainer {
-    flex-grow:1; background:#111; display:flex; justify-content:center; align-items:center; position: relative;
-    overflow: hidden;
-    touch-action: none;
-  }
-  canvas {
-    background:#222;
-    max-width: 100%;
-    max-height: 100%;
-    user-select:none;
-    touch-action:none;
-    cursor: crosshair;
-    image-rendering: pixelated;
-    border-radius:4px;
-  }
+/* Upload area */
+#upload-box {
+width: 320px;
+height: 240px;
+border: 2px dashed #555;
+border-radius: 8px;
+display: flex;
+justify-content: center;
+align-items: center;
+color: #888;
+cursor: pointer;
+margin-bottom: 15px;
+user-select: none;
+background: #282828;
+text-align: center;
+font-size: 15px;
+}
+#upload-box:hover {
+border-color: #2979ff;
+color: #2979ff;
+}
+#upload-box.dragover {
+border-color: #50b3ff;
+color: #50b3ff;
+background: #333;
+}
+#file-input {
+display: none;
+}
 
-  /* Footer toolbar */
-  footer {
-    height: 50px; background:#222; display:flex; align-items:center; justify-content:center; gap:15px;
-    padding:0 10px;
-  }
-  footer button {
-    background:#0ff; border:none; padding:8px 12px; border-radius:4px; font-weight:700; cursor:pointer;
-    color:#222;
-    user-select:none;
-    transition: background-color 0.3s;
-  }
-  footer button:disabled {
-    background:#444; cursor:not-allowed; color:#888;
-  }
+/* Canvas container */
+#canvas-container {
+border: 1px solid #333;
+background: #111;
+border-radius: 6px;
+max-width: 100%;
+max-height: 480px;
+overflow: auto;
+}
+canvas {
+display: block;
+margin: 0 auto;
+max-width: 100%;
+max-height: 480px;
+user-select: none;
+background: #222;
+}
 
-  /* Upload button floating */
-  #uploadBtn {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    z-index: 10;
-    background:#0ff;
-    border:none;
-    padding: 6px 12px;
-    border-radius: 4px;
-    font-weight: 600;
-    color:#222;
-    cursor:pointer;
-  }
-  #uploadInput {
-    display:none;
-  }
+/* Kontrol alat di bawah canvas */
+#controls {
+margin-top: 12px;
+display: flex;
+gap: 12px;
+justify-content: center;
+flex-wrap: wrap;
+}
+#controls button {
+background: #2979ff;
+border: none;
+color: white;
+padding: 8px 14px;
+font-weight: 600;
+border-radius: 5px;
+cursor: pointer;
+user-select: none;
+font-size: 14px;
+transition: background 0.3s ease;
+}
+#controls button:hover:not(:disabled) {
+background: #1c5ad6;
+}
+#controls button:disabled {
+background: #555;
+cursor: not-allowed;
+}
 
-  /* Responsive */
-  @media(max-width:900px){
-    #sidebarLeft, #sidebarRight {
-      position: fixed;
-      top: 50px; bottom: 50px;
-      z-index: 20;
-      box-shadow: 2px 0 8px rgba(0,0,0,0.8);
-      background:#222;
-    }
-    #sidebarLeft.hide {
-      transform: translateX(-260px);
-    }
-    #sidebarRight.hide {
-      transform: translateX(260px);
-    }
-    #menuToggle { display:inline-block; }
-    #sidebarRight { right: 0; }
-    #sidebarLeft { left: 0; }
-    #canvasContainer {
-      flex-grow:1; /* full area under header/footer */
-    }
-  }
+/* Status info */
+#status {
+margin-top: 8px;
+font-size: 13px;
+color: #bbb;
+min-height: 18px;
+text-align: center;
+user-select: none;
+}
+
+/* Responsive /
+@media (max-width: 768px) {
+aside {
+width: 180px;
+padding: 10px 8px;
+}
+#upload-box {
+width: 260px;
+height: 180px;
+font-size: 14px;
+}
+}
+@media (max-width: 480px) {
+body, html {
+font-size: 14px;
+}
+aside {
+display: none; / Sembunyikan sidebar di HP */
+}
+section#content {
+padding: 10px;
+}
+#upload-box {
+width: 100%;
+height: 150px;
+}
+}
 </style>
-</head>
-<body>
-<div id="app">
-  <header>
-    <button id="backBtn" title="Back">&#8592;</button>
-    <div id="logo">DSRT Image Editor</div>
-    <button id="menuToggle" title="Toggle Menu">&#9776;</button>
-  </header>
-  <div id="main">
-    <aside id="sidebarLeft" class="hide" aria-label="Sidebar tools">
-      <button id="closeSidebar" title="Close Sidebar">&times;</button>
-      <h3>Manual Tools</h3>
-      <button class="toolBtn" data-tool="crop">Crop</button>
-      <button class="toolBtn" data-tool="rotate">Rotate 90°</button>
-      <button class="toolBtn" data-tool="brush">Brush</button>
-      <button class="toolBtn" data-tool="eraser">Eraser</button>
-      <h3>Restoration</h3>
-      <button class="toolBtn" data-tool="spotHealing">Spot Healing</button>
-      <button class="toolBtn" data-tool="cloneStamp">Clone Stamp</button>
-      <h3>Filters</h3>
-      <button class="toolBtn" data-tool="brightness">Brightness</button>
-      <button class="toolBtn" data-tool="contrast">Contrast</button>
-      <button class="toolBtn" data-tool="grayscale">Grayscale</button>
-      <button class="toolBtn" data-tool="sepia">Sepia</button>
-      <button class="toolBtn" data-tool="invert">Invert</button>
-    </aside>
 
-    <div id="canvasContainer" tabindex="0" aria-label="Image editing canvas">
-      <input type="file" id="uploadInput" accept="image/*" />
-      <button id="uploadBtn" title="Upload Image">Choose File</button>
-      <canvas id="canvas" width="800" height="600"></canvas>
-    </div>
+</head>  
+<body>  <header>  
+  <button id="back-btn" aria-label="Back">&larr;</button>  
+  <div id="title">Fusion Tools</div>  
+  <button id="download-btn" aria-expanded="false" aria-haspopup="true">DOWNLOAD / CETAK</button>  
+  <div id="resolution-popup" role="menu" aria-label="Pilih resolusi download">  
+    <button data-res="360" role="menuitem">360 px (kecil)</button>  
+    <button data-res="720" role="menuitem">720 px (sedang)</button>  
+    <button data-res="1080" role="menuitem">1080 px (besar)</button>  
+    <button data-res="1920" role="menuitem">1920 px (HD)</button>  
+  </div>  
+</header>  <main>  
+  <aside aria-label="Sidebar alat restorasi foto">  
+    <h3>1. Basic Tools</h3>  
+    <ul class="tool-list" id="basic-tools">  
+      <li>Rotate 90° CW</li>  
+      <li>Rotate 90° CCW</li>  
+      <li>Zoom In</li>  
+      <li>Zoom Out</li>  
+      <li>Reset View</li>  
+    </ul>  <h3>2. Retouch & Selection</h3>  
+<ul class="tool-list" id="retouch-tools">  
+  <li>Crop Interaktif</li>  
+  <li>Brightness & Contrast</li>  
+  <li>Clone Stamp</li>  
+  <li>Healing Brush</li>  
+  <li>Selection Brush</li>  
+</ul>  
 
-    <aside id="sidebarRight" class="hide" aria-label="Tool properties">
-      <h3>Properties</h3>
-      <div id="toolProperties">Pilih tool dulu</div>
-    </aside>
-  </div>
+<h3>3. Restorasi Foto Lama & Rekonstruksi</h3>  
+<ul class="tool-list" id="restoration-tools">  
+  <li>Remove Noise</li>  
+  <li>Scratch Removal</li>  
+  <li>Color Correction</li>  
+  <li>Detail Enhancement</li>  
+  <li>Patch Tool</li>  
+</ul>  
 
-  <footer>
-    <button id="undoBtn" disabled>Undo</button>
-    <button id="redoBtn" disabled>Redo</button>
-    <button id="saveBtn" disabled>Save</button>
-    <button id="exportBtn" disabled>Export</button>
-  </footer>
-</div>
+<h3>4. Precision & Transform</h3>  
+<ul class="tool-list" id="precision-tools">  
+  <li>Perspective Correction</li>  
+  <li>Warp Tool</li>  
+  <li>Liquify</li>  
+  <li>Free Transform</li>  
+  <li>Lens Correction</li>  
+</ul>  
 
-<script>
-(() => {
-  const canvas = document.getElementById('canvas');
-  const ctx = canvas.getContext('2d');
+<h3>5. Ekstender & Fitur Pro</h3>  
+<ul class="tool-list" id="pro-tools">  
+  <li>Batch Processing</li>  
+  <li>Script Automation</li>  
+  <li>Plugin Manager</li>  
+  <li>AI Enhancer (Coming Soon)</li>  
+  <li>Cloud Sync (Coming Soon)</li>  
+</ul>
 
-  // Elemen sidebar kanan properti
-  const sidebarRight = document.getElementById('sidebarRight');
-  const toolProperties = document.getElementById('toolProperties');
+  </aside>    <section id="content" aria-label="Area utama upload dan preview foto">  
+    <label id="upload-box" for="file-input" tabindex="0" role="button" aria-describedby="upload-desc">  
+      Klik atau drag foto ke sini untuk upload  
+      <input type="file" id="file-input" accept="image/png, image/jpeg" />  
+    </label>  
+    <div id="upload-desc" style="font-size:12px; color:#666; margin-top:-10px; margin-bottom:12px;">  
+      Format: JPG, PNG. Maks 5MB  
+    </div>  <div id="canvas-container">  
+  <canvas id="canvas" width="600" height="400" aria-label="Preview gambar"></canvas>  
+</div>  
 
-  // Undo/Redo Buttons
-  const undoBtn = document.getElementById('undoBtn');
-  const redoBtn = document.getElementById('redoBtn');
-  const saveBtn = document.getElementById('saveBtn');
-  const exportBtn = document.getElementById('exportBtn');
+<div id="controls" role="group" aria-label="Kontrol alat">  
+  <button id="btn-rotate-cw" title="Rotate 90° CW">Rotate &#x27A1;</button>  
+  <button id="btn-rotate-ccw" title="Rotate 90° CCW">&#x2B05; Rotate</button>  
+  <button id="btn-zoom-in" title="Zoom In">Zoom +</button>  
+  <button id="btn-zoom-out" title="Zoom Out">Zoom -</button>  
+  <button id="btn-crop" title="Crop Gambar">Crop</button>  
+  <button id="btn-reset" title="Reset Gambar">Reset</button>  
+</div>  
 
-  // Upload input & button
-  const uploadInput = document.getElementById('uploadInput');
-  const uploadBtn = document.getElementById('uploadBtn');
+<div id="status" role="status" aria-live="polite"></div>
 
-  // Sidebar toggle (mobile)
-  const menuToggle = document.getElementById('menuToggle');
-  const sidebarLeft = document.getElementById('sidebarLeft');
-  const closeSidebar = document.getElementById('closeSidebar');
-
-  // Tool buttons
-  const toolButtons = document.querySelectorAll('#sidebarLeft button.toolBtn');
-
-  // State gambar & tools
-  let img = new Image();
-  let imgLoaded = false;
-
-  // Undo stack (simpan dataURL)
-  const undoStack = [];
-  const redoStack = [];
-  const maxHistory = 20;
-
-  // Tool aktif & parameter
-  let currentTool = null;
-
-  // Crop vars
-  let cropStart = null;
-  let cropEnd = null;
-  let isCropping = false;
-
-  // Brush parameter
-  let brushSize = 15;
-
-  // ----------------- Fungsi -------------------
-
-  function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if (!imgLoaded) {
-      ctx.fillStyle = '#222';
-      ctx.font = '20px Poppins, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('Upload gambar dulu', canvas.width / 2, canvas.height / 2);
-      return;
-    }
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-    if (currentTool === 'crop' && cropStart && cropEnd) {
-      ctx.strokeStyle = '#0ff';
-      ctx.lineWidth = 2;
-      const x = Math.min(cropStart.x, cropEnd.x);
-      const y = Math.min(cropStart.y, cropEnd.y);
-      const w = Math.abs(cropStart.x - cropEnd.x);
-      const h = Math.abs(cropStart.y - cropEnd.y);
-      ctx.strokeRect(x, y, w, h);
-    }
-  }
-
-  function saveState() {
-    if (!imgLoaded) return;
-    if (undoStack.length >= maxHistory) undoStack.shift();
-    undoStack.push(canvas.toDataURL());
-    redoStack.length = 0;
-    updateUndoRedo();
-  }
-
-  function restoreFromDataURL(dataURL) {
-    const tmpImg = new Image();
-    tmpImg.onload = () => {
-      img = tmpImg;
-      imgLoaded = true;
-      draw();
-      updateUndoRedo();
-    };
-    tmpImg.src = dataURL;
-  }
-
-  function undo() {
-    if (undoStack.length > 1) {
-      const last = undoStack.pop();
-      redoStack.push(last);
-      restoreFromDataURL(undoStack[undoStack.length - 1]);
-    }
-  }
-
-  function redo() {
-    if (redoStack.length > 0) {
-      const redoData = redoStack.pop();
-      undoStack.push(redoData);
-      restoreFromDataURL(redoData);
-    }
-  }
-
-  function updateUndoRedo() {
-    undoBtn.disabled = undoStack.length <= 1;
-    redoBtn.disabled = redoStack.length === 0;
-    saveBtn.disabled = !imgLoaded;
-    exportBtn.disabled = !imgLoaded;
-  }
-
-  function handleFile(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = evt => {
-      const image = new Image();
-      image.onload = () => {
-        img = image;
-        imgLoaded = true;
-        let w = img.width;
-        let h = img.height;
-        const maxW = 800;
-        const maxH = 600;
-        if (w > maxW) {
-          h = h * maxW / w;
-          w = maxW;
-        }
-        if (h > maxH) {
-          w = w * maxH / h;
-          h = maxH;
-        }
-        canvas.width = w;
-        canvas.height = h;
-        draw();
-        saveState();
-      };
-      image.src = evt.target.result;
-    };
-    reader.readAsDataURL(file);
-  }
-
-  // ---------------- Tool selection ----------------
-
-  toolButtons.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const selectedTool = btn.dataset.tool;
-      if (currentTool === selectedTool) {
-        currentTool = null;
-        btn.classList.remove('active');
-        sidebarRight.classList.add('hide');
-        toolProperties.innerHTML = 'Pilih tool dulu';
-      } else {
-        currentTool = selectedTool;
-        toolButtons.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        sidebarRight.classList.remove('hide');
-        updatePropertiesPanel(selectedTool);
-      }
-      draw();
-    });
-  });
-
-  function updatePropertiesPanel(tool) {
-    let html = '';
-    switch (tool) {
-      case 'brush':
-        html = `<label>Ukuran Brush: <input type="range" id="brushSize" min="1" max="50" value="${brushSize}"></label>`;
-        break;
-      case 'crop':
-        html = `<p>Drag di canvas untuk memilih area crop, lalu klik <button id="applyCropBtn">Crop</button></p>`;
-        break;
-      case 'rotate':
-        html = `<button id="rotateBtn">Putar 90°</button>`;
-        break;
-      case 'brightness':
-      case 'contrast':
-        html = `<label>${tool.charAt(0).toUpperCase() + tool.slice(1)}: <input type="range" id="${tool}Range" min="-100" max="100" value="0"></label>`;
-        break;
-      default:
-        html = `<p>Atur properti jika ada.</p>`;
-    }
-    toolProperties.innerHTML = html;
-
-    if (tool === 'brush') {
-      document.getElementById('brushSize').addEventListener('input', e => {
-        brushSize = +e.target.value;
-      });
-    }
-    if (tool === 'crop') {
-      document.getElementById('applyCropBtn').addEventListener('click', applyCrop);
-    }
-    if (tool === 'rotate') {
-      document.getElementById('rotateBtn').addEventListener('click', rotateImage);
-    }
-    if (tool === 'brightness') {
-      document.getElementById('brightnessRange').addEventListener('input', e => applyFilter('brightness', +e.target.value));
-    }
-    if (tool === 'contrast') {
-      document.getElementById('contrastRange').addEventListener('input', e => applyFilter('contrast', +e.target.value));
-    }
-  }
-
-  // ---------------- Canvas events ----------------
-
-  let isDrawing = false;
-  let lastPos = null;
-
-  canvas.addEventListener('mousedown', e => {
-    if (!imgLoaded) return;
-    const pos = getCanvasPos(e);
-    if (currentTool === 'crop') {
-      cropStart = pos;
-      cropEnd = null;
-      isCropping = true;
-      draw();
-    } else if (currentTool === 'brush') {
-      isDrawing = true;
-      lastPos = pos;
-    }
-  });
-
-  canvas.addEventListener('mousemove', e => {
-    if (!imgLoaded) return;
-    const pos = getCanvasPos(e);
-    if (currentTool === 'crop' && isCropping) {
-      cropEnd = pos;
-      draw();
-    }
-    if (isDrawing && currentTool === 'brush') {
-      drawLine(lastPos.x, lastPos.y, pos.x, pos.y);
-      lastPos = pos;
-    }
-  });
-
-  canvas.addEventListener('mouseup', e => {
-    if (currentTool === 'crop' && isCropping) {
-      cropEnd = getCanvasPos(e);
-      isCropping = false;
-      draw();
-    }
-    if (isDrawing && currentTool === 'brush') {
-      isDrawing = false;
-      lastPos = null;
-      saveState();
-    }
-  });
-
-  canvas.addEventListener('mouseleave', e => {
-    if (isDrawing) {
-      isDrawing = false;
-      lastPos = null;
-    }
-  });
-
-  function getCanvasPos(evt) {
-    const rect = canvas.getBoundingClientRect();
-    let x, y;
-    if (evt.touches) {
-      x = evt.touches[0].clientX - rect.left;
-      y = evt.touches[0].clientY - rect.top;
-    } else {
-      x = evt.clientX - rect.left;
-      y = evt.clientY - rect.top;
-    }
-    x = Math.max(0, Math.min(canvas.width, x));
-    y = Math.max(0, Math.min(canvas.height, y));
-    return { x, y };
-  }
-
-  function drawLine(x1, y1, x2, y2) {
-    ctx.strokeStyle = '#0ff';
-    ctx.lineWidth = brushSize;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.stroke();
-  }
-
-  // ---------------- Tools -------------------
-
-  function applyCrop() {
-    if (!cropStart || !cropEnd) return alert('Pilih area crop dulu!');
-    const x = Math.min(cropStart.x, cropEnd.x);
-    const y = Math.min(cropStart.y, cropEnd.y);
-    const w = Math.abs(cropStart.x - cropEnd.x);
-    const h = Math.abs(cropStart.y - cropEnd.y);
-    if (w < 10 || h < 10) return alert('Area crop terlalu kecil!');
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = w;
-    tempCanvas.height = h;
-    const tempCtx = tempCanvas.getContext('2d');
-    tempCtx.drawImage(canvas, x, y, w, h, 0, 0, w, h);
-    img.src = tempCanvas.toDataURL();
-    img.onload = () => {
-      canvas.width = w;
-      canvas.height = h;
-      draw();
-      saveState();
-    };
-    cropStart = cropEnd = null;
-  }
-
-  function rotateImage() {
-    if (!imgLoaded) return;
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = img.height;
-    tempCanvas.height = img.width;
-    const tempCtx = tempCanvas.getContext('2d');
-    tempCtx.translate(tempCanvas.width / 2, tempCanvas.height / 2);
-    tempCtx.rotate(Math.PI / 2);
-    tempCtx.drawImage(img, -img.width / 2, -img.height / 2);
-    img.src = tempCanvas.toDataURL();
-    img.onload = () => {
-      canvas.width = tempCanvas.width;
-      canvas.height = tempCanvas.height;
-      draw();
-      saveState();
-    };
-  }
-
-  function applyFilter(type, value) {
-    if (!imgLoaded) return;
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const data = imageData.data;
-
-    if (type === 'brightness') {
-      for (let i = 0; i < data.length; i += 4) {
-        data[i] = clamp(data[i] + value * 2.55);     // R
-        data[i+1] = clamp(data[i+1] + value * 2.55); // G
-        data[i+2] = clamp(data[i+2] + value * 2.55); // B
-      }
-    } else if (type === 'contrast') {
-      const contrast = (value / 100) + 1;
-      const intercept = 128 * (1 - contrast);
-      for (let i = 0; i < data.length; i += 4) {
-        data[i] = clamp(data[i] * contrast + intercept);
-        data[i+1] = clamp(data[i+1] * contrast + intercept);
-        data[i+2] = clamp(data[i+2] * contrast + intercept);
-      }
-    }
-    ctx.putImageData(imageData, 0, 0);
-    saveState();
-  }
-
-  function clamp(val) {
-    return Math.max(0, Math.min(255, val));
-  }
-
-  // Filter presets
-
-  function applyPresetFilter(filterName) {
-    if (!imgLoaded) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.filter = 'none';
-
-    switch (filterName) {
-      case 'grayscale':
-        ctx.filter = 'grayscale(100%)';
-        break;
-      case 'sepia':
-        ctx.filter = 'sepia(100%)';
-        break;
-      case 'invert':
-        ctx.filter = 'invert(100%)';
-        break;
-      default:
-        ctx.filter = 'none';
-    }
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    ctx.filter = 'none';
-    saveState();
-  }
-
-  // Tool Buttons special handling for filters
-
-  toolButtons.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const tool = btn.dataset.tool;
-      if (['grayscale','sepia','invert'].includes(tool)) {
-        applyPresetFilter(tool);
-      }
-    });
-  });
-
-  // Undo/Redo buttons event
-  undoBtn.addEventListener('click', undo);
-  redoBtn.addEventListener('click', redo);
-
-  // Save (overwrite current state)
-  saveBtn.addEventListener('click', () => {
-    alert('Gambar sudah tersimpan di editor (undo history).');
-  });
-
-  // Export button (download PNG)
-  exportBtn.addEventListener('click', () => {
-    if (!imgLoaded) return;
-    const link = document.createElement('a');
-    link.download = 'dsrt-image.png';
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-  });
-
-  // Upload button open file dialog
-  uploadBtn.addEventListener('click', () => uploadInput.click());
-  uploadInput.addEventListener('change', handleFile);
-
-  // Sidebar toggle for mobile
-  menuToggle.addEventListener('click', () => {
-    if (sidebarLeft.classList.contains('hide')) {
-      sidebarLeft.classList.remove('hide');
-    } else {
-      sidebarLeft.classList.add('hide');
-    }
-  });
-  closeSidebar.addEventListener('click', () => sidebarLeft.classList.add('hide'));
-
-  // Initial draw
-  draw();
-
-})();
-</script>
-</body>
+  </section>  
+</main>  <script>  
+(() => {  
+  // Elemen utama  
+  const fileInput = document.getElementById('file-input');  
+  const uploadBox = document.getElementById('upload-box');  
+  const canvas = document.getElementById('canvas');  
+  const ctx = canvas.getContext('2d');  
+  const status = document.getElementById('status');  
+  
+  // Kontrol tombol  
+  const btnRotateCW = document.getElementById('btn-rotate-cw');  
+  const btnRotateCCW = document.getElementById('btn-rotate-ccw');  
+  const btnZoomIn = document.getElementById('btn-zoom-in');  
+  const btnZoomOut = document.getElementById('btn-zoom-out');  
+  const btnReset = document.getElementById('btn-reset');  
+  const btnCrop = document.getElementById('btn-crop');  
+  
+  // Download  
+  const downloadBtn = document.getElementById('download-btn');  
+  const resPopup = document.getElementById('resolution-popup');  
+  
+  // Gambar asli dan status transformasi  
+  let img = new Image();  
+  let imgLoaded = false;  
+  let imgOriginalWidth = 0;  
+  let imgOriginalHeight = 0;  
+  
+  let currentScale = 1;  
+  let currentAngle = 0; // derajat  
+  let currentTranslate = { x: 0, y: 0 };  
+  
+  // Crop state  
+  let cropping = false;  
+  let cropRect = null; // {x, y, w, h} dalam koordinat canvas  
+  
+  // Status info  
+  function setStatus(text) {  
+    status.textContent = text;  
+  }  
+  
+  // Reset transformasi dan crop  
+  function resetTransform() {  
+    currentScale = 1;  
+    currentAngle = 0;  
+    currentTranslate = { x: 0, y: 0 };  
+    cropRect = null;  
+    cropping = false;  
+    drawImage();  
+    setStatus("Gambar sudah di-reset");  
+  }  
+  
+  // Gambar ulang canvas sesuai transformasi dan crop  
+  function drawImage() {  
+    ctx.clearRect(0, 0, canvas.width, canvas.height);  
+    if (!imgLoaded) {  
+      ctx.fillStyle = '#555';  
+      ctx.font = "18px sans-serif";  
+      ctx.textAlign = "center";  
+      ctx.fillText("Tidak ada gambar", canvas.width/2, canvas.height/2);  
+      return;  
+    }  
+    ctx.save();  
+  
+    // Tarik canvas ke tengah  
+    ctx.translate(canvas.width/2 + currentTranslate.x, canvas.height/2 + currentTranslate.y);  
+  
+    // Rotate dan scale  
+    ctx.rotate(currentAngle * Math.PI / 180);  
+    ctx.scale(currentScale, currentScale);  
+  
+    // Gambar gambar  
+    ctx.drawImage(img, -imgOriginalWidth/2, -imgOriginalHeight/2, imgOriginalWidth, imgOriginalHeight);  
+  
+    ctx.restore();  
+  
+    // Jika crop aktif, gambarkan overlay crop area  
+    if (cropping && cropRect) {  
+      ctx.save();  
+      ctx.strokeStyle = '#2979ff';  
+      ctx.lineWidth = 2;  
+      ctx.setLineDash([6]);  
+      ctx.strokeRect(cropRect.x, cropRect.y, cropRect.w, cropRect.h);  
+  
+      ctx.fillStyle = 'rgba(41,121,255,0.2)';  
+      ctx.fillRect(cropRect.x, cropRect.y, cropRect.w, cropRect.h);  
+      ctx.restore();  
+    }  
+  }  
+  
+  // Upload handler  
+  fileInput.addEventListener('change', (e) => {  
+    if (fileInput.files.length === 0) return;  
+    const file = fileInput.files[0];  
+    if (!file.type.startsWith("image/")) {  
+      alert("Format file bukan gambar.");  
+      return;  
+    }  
+    if (file.size > 5*1024*1024) {  
+      alert("Maksimal ukuran file 5MB.");  
+      return;  
+    }  
+    const reader = new FileReader();  
+    reader.onload = () => {  
+      img.src = reader.result;  
+    };  
+    reader.readAsDataURL(file);  
+  });  
+  
+  // Load gambar  
+  img.onload = () => {  
+    imgLoaded = true;  
+    imgOriginalWidth = img.width;  
+    imgOriginalHeight = img.height;  
+  
+    // Resize canvas jika gambar lebih besar dari 600x400  
+    let cw = 600, ch = 400;  
+    if (imgOriginalWidth > cw || imgOriginalHeight > ch) {  
+      const scaleW = cw / imgOriginalWidth;  
+      const scaleH = ch / imgOriginalHeight;  
+      const scale = Math.min(scaleW, scaleH);  
+      canvas.width = imgOriginalWidth * scale;  
+      canvas.height = imgOriginalHeight * scale;  
+    } else {  
+      canvas.width = imgOriginalWidth;  
+      canvas.height = imgOriginalHeight;  
+    }  
+  
+    resetTransform();  
+    setStatus("Gambar berhasil diupload");  
+  };  
+  
+  // Drag & drop upload support  
+  uploadBox.addEventListener('dragover', (e) => {  
+    e.preventDefault();  
+    uploadBox.classList.add('dragover');  
+  });  
+  uploadBox.addEventListener('dragleave', (e) => {  
+    uploadBox.classList.remove('dragover');  
+  });  
+  uploadBox.addEventListener('drop', (e) => {  
+    e.preventDefault();  
+    uploadBox.classList.remove('dragover');  
+    if (e.dataTransfer.files.length > 0) {  
+      fileInput.files = e.dataTransfer.files;  
+      fileInput.dispatchEvent(new Event('change'));  
+    }  
+  });  
+  
+  // Tombol kontrol  
+  btnRotateCW.addEventListener('click', () => {  
+    if (!imgLoaded) return setStatus("Upload dulu gambar.");  
+    currentAngle += 90;  
+    if (currentAngle >= 360) currentAngle -= 360;  
+    drawImage();  
+    setStatus("Rotate 90° CW");  
+  });  
+  btnRotateCCW.addEventListener('click', () => {  
+    if (!imgLoaded) return setStatus("Upload dulu gambar.");  
+    currentAngle -= 90;  
+    if (currentAngle < 0) currentAngle += 360;  
+    drawImage();  
+    setStatus("Rotate 90° CCW");  
+  });  
+  btnZoomIn.addEventListener('click', () => {  
+    if (!imgLoaded) return setStatus("Upload dulu gambar.");  
+    currentScale += 0.1;  
+    if (currentScale > 5) currentScale = 5;  
+    drawImage();  
+    setStatus("Zoom In");  
+  });  
+  btnZoomOut.addEventListener('click', () => {  
+    if (!imgLoaded) return setStatus("Upload dulu gambar.");  
+    currentScale -= 0.1;  
+    if (currentScale < 0.1) currentScale = 0.1;  
+    drawImage();  
+    setStatus("Zoom Out");  
+  });  
+  btnReset.addEventListener('click', () => {  
+    if (!imgLoaded) return setStatus("Upload dulu gambar.");  
+    resetTransform();  
+  });  
+  
+  // Crop interaktif  
+  btnCrop.addEventListener('click', () => {  
+    if (!imgLoaded) return setStatus("Upload dulu gambar.");  
+    if (!cropping) {  
+      cropping = true;  
+      cropRect = { x: canvas.width * 0.1, y: canvas.height * 0.1, w: canvas.width * 0.8, h: canvas.height * 0.8 };  
+      setStatus("Crop mode aktif: drag dan resize area crop, klik crop lagi untuk terapkan.");  
+      drawImage();  
+    } else {  
+      // Terapkan crop: render area crop jadi gambar baru  
+      if (!cropRect || cropRect.w <= 0 || cropRect.h <= 0) {  
+        setStatus("Area crop tidak valid.");  
+        return;  
+      }  
+      // Buat canvas sementara untuk crop  
+      const tempCanvas = document.createElement('canvas');  
+      const tempCtx = tempCanvas.getContext('2d');  
+      tempCanvas.width = cropRect.w;  
+      tempCanvas.height = cropRect.h;  
+  
+      // Hitung koordinat crop pada gambar asli (tanpa transform)  
+      // Konversi cropRect ke koordinat gambar asli  
+      // Karena gambar digambar dengan transform (rotate, scale), proses crop di canvas tidak trivial  
+      // Jadi, untuk simplifikasi crop dilakukan pada canvas hasil render tanpa transformasi rotasi/scale saat crop aktif  
+      // Oleh karena itu crop hanya berlaku saat currentAngle == 0 dan currentScale == 1  
+      if (currentAngle !== 0 || currentScale !== 1) {  
+        setStatus("Crop hanya bisa diterapkan saat gambar tanpa rotasi dan zoom (reset dulu).");  
+        return;  
+      }  
+  
+      tempCtx.drawImage(  
+        canvas,  
+        cropRect.x,  
+        cropRect.y,  
+        cropRect.w,  
+        cropRect.h,  
+        0,  
+        0,  
+        cropRect.w,  
+        cropRect.h  
+      );  
+  
+      // Ganti gambar sumber dengan hasil crop  
+      img.src = tempCanvas.toDataURL("image/png");  
+  
+      cropping = false;  
+      cropRect = null;  
+      setStatus("Crop diterapkan.");  
+    }  
+  });  
+  
+  // Crop drag & resize di canvas  
+  let isDragging = false;  
+  let dragOffset = { x: 0, y: 0 };  
+  let dragCorner = null; // null or "nw", "ne", "sw", "se"  
+  const cornerSize = 12;  
+  
+  function pointInRect(px, py, rx, ry, rw, rh) {  
+    return px >= rx && px <= rx + rw && py >= ry && py <= ry + rh;  
+  }  
+  function pointInCorner(px, py, cx, cy) {  
+    return Math.abs(px - cx) <= cornerSize && Math.abs(py - cy) <= cornerSize;  
+  }  
+  
+  canvas.addEventListener('mousedown', (e) => {  
+    if (!cropping || !cropRect) return;  
+    const rect = canvas.getBoundingClientRect();  
+    const x = e.clientX - rect.left;  
+    const y = e.clientY - rect.top;  
+  
+    // Check corners first (prioritas resize)  
+    const corners = {  
+      nw: { x: cropRect.x, y: cropRect.y },  
+      ne: { x: cropRect.x + cropRect.w, y: cropRect.y },  
+      sw: { x: cropRect.x, y: cropRect.y + cropRect.h },  
+      se: { x: cropRect.x + cropRect.w, y: cropRect.y + cropRect.h }  
+    };  
+    for (const c in corners) {  
+      if (pointInCorner(x, y, corners[c].x, corners[c].y)) {  
+        isDragging = true;  
+        dragCorner = c;  
+        dragOffset.x = x;  
+        dragOffset.y = y;  
+        return;  
+      }  
+    }  
+    // Check inside rect for move  
+    if (pointInRect(x, y, cropRect.x, cropRect.y, cropRect.w, cropRect.h)) {  
+      isDragging = true;  
+      dragCorner = "move";  
+      dragOffset.x = x - cropRect.x;  
+      dragOffset.y = y - cropRect.y;  
+    }  
+  });  
+  
+  window.addEventListener('mouseup', () => {  
+    isDragging = false;  
+    dragCorner = null;  
+  });  
+  
+  window.addEventListener('mousemove', (e) => {  
+    if (!isDragging || !cropping || !cropRect) return;  
+    const rect = canvas.getBoundingClientRect();  
+    const x = e.clientX - rect.left;  
+    const y = e.clientY - rect.top;  
+  
+    const minSize = 20;  
+  
+    if (dragCorner === "move") {  
+      // Pindah cropRect  
+      let nx = x - dragOffset.x;  
+      let ny = y - dragOffset.y;  
+  
+      // Batas di dalam canvas  
+      nx = Math.max(0, Math.min(nx, canvas.width - cropRect.w));  
+      ny = Math.max(0, Math.min(ny, canvas.height - cropRect.h));  
+  
+      cropRect.x = nx;  
+      cropRect.y = ny;  
+    } else if (dragCorner) {  
+      // Resize cropRect sesuai corner  
+      switch(dragCorner) {  
+        case 'nw':  
+          {  
+            const newX = Math.min(cropRect.x + cropRect.w - minSize, Math.max(0, x));  
+            const newY = Math.min(cropRect.y + cropRect.h - minSize, Math.max(0, y));  
+            const newW = cropRect.x + cropRect.w - newX;  
+            const newH = cropRect.y + cropRect.h - newY;  
+            cropRect.x = newX;  
+            cropRect.y = newY;  
+            cropRect.w = newW;  
+            cropRect.h = newH;  
+          }  
+          break;  
+        case 'ne':  
+          {  
+            const newX = Math.max(cropRect.x + minSize, Math.min(canvas.width, x));  
+            const newY = Math.min(cropRect.y + cropRect.h - minSize, Math.max(0, y));  
+            cropRect.w = newX - cropRect.x;  
+            cropRect.y = newY;  
+            cropRect.h = cropRect.y + cropRect.h - newY;  
+          }  
+          break;  
+        case 'sw':  
+          {  
+            const newX = Math.min(cropRect.x + cropRect.w - minSize, Math.max(0, x));  
+            const newY = Math.max(cropRect.y + minSize, Math.min(canvas.height, y));  
+            cropRect.x = newX;  
+            cropRect.w = cropRect.x + cropRect.w - newX;  
+            cropRect.h = newY - cropRect.y;  
+          }  
+          break;  
+        case 'se':  
+          {  
+            const newX = Math.max(cropRect.x + minSize, Math.min(canvas.width, x));  
+            const newY = Math.max(cropRect.y + minSize, Math.min(canvas.height, y));  
+            cropRect.w = newX - cropRect.x;  
+            cropRect.h = newY - cropRect.y;  
+          }  
+          break;  
+      }  
+    }  
+    drawImage();  
+  });  
+  
+  // Download / Cetak popup toggle  
+  downloadBtn.addEventListener('click', () => {  
+    const expanded = downloadBtn.getAttribute('aria-expanded') === 'true';  
+    if (expanded) {  
+      resPopup.style.display = 'none';  
+      downloadBtn.setAttribute('aria-expanded', 'false');  
+    } else {  
+      resPopup.style.display = 'block';  
+      downloadBtn.setAttribute('aria-expanded', 'true');  
+    }  
+  });  
+  
+  // Klik resolusi download  
+  resPopup.querySelectorAll('button').forEach(btn => {  
+    btn.addEventListener('click', () => {  
+      if (!imgLoaded) {  
+        setStatus("Upload dulu gambar sebelum download.");  
+        return;  
+      }  
+      const size = parseInt(btn.getAttribute('data-res'), 10);  
+      downloadImage(size);  
+      resPopup.style.display = 'none';  
+      downloadBtn.setAttribute('aria-expanded', 'false');  
+    });  
+  });  
+  
+  // Download image dengan resize ke resolusi yang dipilih (mengikuti aspek rasio asli)  
+  function downloadImage(maxSize) {  
+    // Buat canvas baru untuk resize sesuai maxSize  
+    const ratio = imgOriginalWidth / imgOriginalHeight;  
+    let w, h;  
+    if (ratio > 1) {  
+      w = maxSize;  
+      h = Math.round(maxSize / ratio);  
+    } else {  
+      h = maxSize;  
+      w = Math.round(maxSize * ratio);  
+    }  
+  
+    const tempCanvas = document.createElement('canvas');  
+    tempCanvas.width = w;  
+    tempCanvas.height = h;  
+    const tempCtx = tempCanvas.getContext('2d');  
+  
+    // Gambar ulang ke canvas resize dengan transformasi saat ini  
+    tempCtx.save();  
+    tempCtx.clearRect(0, 0, w, h);  
+  
+    // Untuk hasil yang akurat, kita harus menyesuaikan posisi dan rotasi  
+    // Jadi kita gambar gambar asli sesuai currentAngle dan currentScale dengan scaling ke ukuran baru  
+  
+    // Set titik tengah  
+    tempCtx.translate(w/2, h/2);  
+    tempCtx.rotate(currentAngle * Math.PI/180);  
+    tempCtx.scale(currentScale * w / canvas.width, currentScale * h / canvas.height);  
+  
+    tempCtx.drawImage(img, -imgOriginalWidth/2, -imgOriginalHeight/2, imgOriginalWidth, imgOriginalHeight);  
+  
+    tempCtx.restore();  
+  
+    // Jika cropping aktif, crop juga pada hasil resize  
+    if (cropping && cropRect) {  
+      // Crop area di canvas, sesuaikan dengan scaling ukuran  
+      // Crop hanya bisa saat scale=1 dan angle=0, sebelumnya sudah batasi di crop apply  
+      // Jadi abaikan crop di download agar tidak bingung  
+      setStatus("Crop tidak diterapkan pada download saat crop mode aktif.");  
+    }  
+  
+    // Buat link download  
+    tempCanvas.toBlob((blob) => {  
+      const url = URL.createObjectURL(blob);  
+      const a = document.createElement('a');  
+      a.href = url;  
+      a.download = `fusion-tools-${w}x${h}.png`;  
+      document.body.appendChild(a);  
+      a.click();  
+      a.remove();  
+      URL.revokeObjectURL(url);  
+      setStatus(`Download resolusi ${w}x${h} berhasil.`);  
+    }, 'image/png');  
+  }  
+  
+  // Klik back (dummy fungsi, bisa disesuaikan)  
+  document.getElementById('back-btn').addEventListener('click', () => {  
+    setStatus("Tombol Back ditekan.");  
+    // Bisa diisi fungsi navigasi jika diperlukan  
+  });  
+  
+  // Inisialisasi tampilan awal  
+  drawImage();  
+  setStatus("Siap, silakan upload foto.");  
+})();  
+</script>  </body>  
 </html>
